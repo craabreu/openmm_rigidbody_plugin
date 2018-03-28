@@ -1,12 +1,15 @@
+#ifndef OPENMM_RIGIDBODYINTEGRATOR_H_
+#define OPENMM_RIGIDBODYINTEGRATOR_H_
+
 /* -------------------------------------------------------------------------- *
- *                              OpenMMRigidBody                                   *
+ *                                   OpenMM                                   *
  * -------------------------------------------------------------------------- *
  * This is part of the OpenMM molecular simulation toolkit originating from   *
  * Simbios, the NIH National Center for Physics-Based Simulation of           *
  * Biological Structures at Stanford, funded under the NIH Roadmap for        *
  * Medical Research, grant U54 GM072970. See https://simtk.org.               *
  *                                                                            *
- * Portions copyright (c) 2014 Stanford University and the Authors.           *
+ * Portions copyright (c) 2008-2012 Stanford University and the Authors.      *
  * Authors: Peter Eastman                                                     *
  * Contributors:                                                              *
  *                                                                            *
@@ -29,38 +32,56 @@
  * USE OR OTHER DEALINGS IN THE SOFTWARE.                                     *
  * -------------------------------------------------------------------------- */
 
-#include "ReferenceRigidBodyKernelFactory.h"
-#include "ReferenceRigidBodyKernels.h"
-#include "openmm/reference/ReferencePlatform.h"
-#include "openmm/internal/ContextImpl.h"
-#include "openmm/OpenMMException.h"
+#include "openmm/Context.h"
+#include "openmm/Integrator.h"
+#include "openmm/Kernel.h"
+#include <vector>
+#include "internal/windowsExportRigidBody.h"
 
-using namespace RigidBodyPlugin;
-using namespace OpenMM;
+namespace RigidBodyPlugin {
 
-extern "C" OPENMM_EXPORT void registerPlatforms() {
-}
+/**
+ * This is an Integrator which simulates a System using the leap-frog RigidBody algorithm.
+ */
 
-extern "C" OPENMM_EXPORT void registerKernelFactories() {
-    for (int i = 0; i < Platform::getNumPlatforms(); i++) {
-        Platform& platform = Platform::getPlatform(i);
-        if (dynamic_cast<ReferencePlatform*>(&platform) != NULL) {
-            ReferenceRigidBodyKernelFactory* factory = new ReferenceRigidBodyKernelFactory();
-            platform.registerKernelFactory(CalcRigidBodyForceKernel::Name(), factory);
-            platform.registerKernelFactory(IntegrateRigidBodyStepKernel::Name(), factory);
-        }
-    }
-}
+class OPENMM_EXPORT_RIGIDBODY RigidBodyIntegrator : public OpenMM::Integrator {
+public:
+    /**
+     * Create a RigidBodyIntegrator.
+     * 
+     * @param stepSize the step size with which to integrate the system (in picoseconds)
+     */
+    explicit RigidBodyIntegrator(double stepSize);
+   /**
+     * Advance a simulation through time by taking a series of time steps.
+     * 
+     * @param steps   the number of time steps to take
+     */
+    void step(int steps);
+protected:
+    /**
+     * This will be called by the Context when it is created.  It informs the Integrator
+     * of what context it will be integrating, and gives it a chance to do any necessary initialization.
+     * It will also get called again if the application calls reinitialize() on the Context.
+     */
+    void initialize(OpenMM::ContextImpl& context);
+    /**
+     * This will be called by the Context when it is destroyed to let the Integrator do any necessary
+     * cleanup.  It will also get called again if the application calls reinitialize() on the Context.
+     */
+    void cleanup();
+    /**
+     * Get the names of all Kernels used by this Integrator.
+     */
+    std::vector<std::string> getKernelNames();
+    /**
+     * Compute the kinetic energy of the system at the current time.
+     */
+    double computeKineticEnergy();
+private:
+    OpenMM::Kernel kernel;
+};
 
-extern "C" OPENMM_EXPORT void registerRigidBodyReferenceKernelFactories() {
-    registerKernelFactories();
-}
+} // namespace OpenMM
 
-KernelImpl* ReferenceRigidBodyKernelFactory::createKernelImpl(std::string name, const Platform& platform, ContextImpl& context) const {
-    ReferencePlatform::PlatformData& data = *static_cast<ReferencePlatform::PlatformData*>(context.getPlatformData());
-    if (name == CalcRigidBodyForceKernel::Name())
-        return new ReferenceCalcRigidBodyForceKernel(name, platform);
-    if (name == IntegrateRigidBodyStepKernel::Name())
-        return new ReferenceIntegrateRigidBodyStepKernel(name, platform, data);
-    throw OpenMMException((std::string("Tried to create kernel with illegal kernel name '")+name+"'").c_str());
-}
+#endif /*OPENMM_RIGIDBODYINTEGRATOR_H_*/

@@ -33,6 +33,7 @@
  * -------------------------------------------------------------------------- */
 
 #include "RigidBodyForce.h"
+#include "RigidBodyIntegrator.h"
 #include "openmm/KernelImpl.h"
 #include "openmm/Platform.h"
 #include "openmm/System.h"
@@ -73,6 +74,39 @@ public:
      * @param force      the RigidBodyForce to copy the parameters from
      */
     virtual void copyParametersToContext(OpenMM::ContextImpl& context, const RigidBodyForce& force) = 0;
+};
+
+/**
+ * This kernel is invoked by RigidBodyIntegrator to take one time step.
+ */
+class IntegrateRigidBodyStepKernel : public OpenMM::KernelImpl {
+public:
+    static std::string Name() {
+        return "IntegrateRigidBodyStep";
+    }
+    IntegrateRigidBodyStepKernel(std::string name, const OpenMM::Platform& platform) : OpenMM::KernelImpl(name, platform) {
+    }
+    /**
+     * Initialize the kernel.
+     * 
+     * @param system     the System this kernel will be applied to
+     * @param integrator the RigidBodyIntegrator this kernel will be used for
+     */
+    virtual void initialize(const OpenMM::System& system, const RigidBodyIntegrator& integrator) = 0;
+    /**
+     * Execute the kernel.
+     * 
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    virtual void execute(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator) = 0;
+    /**
+     * Compute the kinetic energy.
+     * 
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    virtual double computeKineticEnergy(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator) = 0;
 };
 
 } // namespace RigidBodyPlugin

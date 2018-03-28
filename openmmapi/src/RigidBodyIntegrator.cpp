@@ -1,12 +1,12 @@
 /* -------------------------------------------------------------------------- *
- *                              OpenMMRigidBody                                   *
+ *                                   OpenMM                                   *
  * -------------------------------------------------------------------------- *
  * This is part of the OpenMM molecular simulation toolkit originating from   *
  * Simbios, the NIH National Center for Physics-Based Simulation of           *
  * Biological Structures at Stanford, funded under the NIH Roadmap for        *
  * Medical Research, grant U54 GM072970. See https://simtk.org.               *
  *                                                                            *
- * Portions copyright (c) 2014 Stanford University and the Authors.           *
+ * Portions copyright (c) 2008-2012 Stanford University and the Authors.      *
  * Authors: Peter Eastman                                                     *
  * Contributors:                                                              *
  *                                                                            *
@@ -29,38 +29,53 @@
  * USE OR OTHER DEALINGS IN THE SOFTWARE.                                     *
  * -------------------------------------------------------------------------- */
 
-#include "ReferenceRigidBodyKernelFactory.h"
-#include "ReferenceRigidBodyKernels.h"
-#include "openmm/reference/ReferencePlatform.h"
-#include "openmm/internal/ContextImpl.h"
+#include "RigidBodyIntegrator.h"
+#include "openmm/Context.h"
 #include "openmm/OpenMMException.h"
+#include "openmm/internal/ContextImpl.h"
+#include "openmm/kernels.h"
+#include "RigidBodyKernels.h"
+#include <string>
 
 using namespace RigidBodyPlugin;
 using namespace OpenMM;
+using std::string;
+using std::vector;
 
-extern "C" OPENMM_EXPORT void registerPlatforms() {
+RigidBodyIntegrator::RigidBodyIntegrator(double stepSize) {
+    setStepSize(stepSize);
+    setConstraintTolerance(1e-5);
 }
 
-extern "C" OPENMM_EXPORT void registerKernelFactories() {
-    for (int i = 0; i < Platform::getNumPlatforms(); i++) {
-        Platform& platform = Platform::getPlatform(i);
-        if (dynamic_cast<ReferencePlatform*>(&platform) != NULL) {
-            ReferenceRigidBodyKernelFactory* factory = new ReferenceRigidBodyKernelFactory();
-            platform.registerKernelFactory(CalcRigidBodyForceKernel::Name(), factory);
-            platform.registerKernelFactory(IntegrateRigidBodyStepKernel::Name(), factory);
-        }
+void RigidBodyIntegrator::initialize(ContextImpl& contextRef) {
+    if (owner != NULL && &contextRef.getOwner() != owner)
+        throw OpenMMException("This Integrator is already bound to a context");
+    context = &contextRef;
+    owner = &contextRef.getOwner();
+    kernel = context->getPlatform().createKernel(IntegrateRigidBodyStepKernel::Name(), contextRef);
+    kernel.getAs<IntegrateRigidBodyStepKernel>().initialize(contextRef.getSystem(), *this);
+}
+
+void RigidBodyIntegrator::cleanup() {
+    kernel = Kernel();
+}
+
+vector<string> RigidBodyIntegrator::getKernelNames() {
+    std::vector<std::string> names;
+    names.push_back(IntegrateRigidBodyStepKernel::Name());
+    return names;
+}
+
+double RigidBodyIntegrator::computeKineticEnergy() {
+    return kernel.getAs<IntegrateRigidBodyStepKernel>().computeKineticEnergy(*context, *this);
+}
+
+void RigidBodyIntegrator::step(int steps) {
+    if (context == NULL)
+        throw OpenMMException("This Integrator is not bound to a context!");
+    for (int i = 0; i < steps; ++i) {
+        context->updateContextState();
+        context->calcForcesAndEnergy(true, false);
+        kernel.getAs<IntegrateRigidBodyStepKernel>().execute(*context, *this);
     }
-}
-
-extern "C" OPENMM_EXPORT void registerRigidBodyReferenceKernelFactories() {
-    registerKernelFactories();
-}
-
-KernelImpl* ReferenceRigidBodyKernelFactory::createKernelImpl(std::string name, const Platform& platform, ContextImpl& context) const {
-    ReferencePlatform::PlatformData& data = *static_cast<ReferencePlatform::PlatformData*>(context.getPlatformData());
-    if (name == CalcRigidBodyForceKernel::Name())
-        return new ReferenceCalcRigidBodyForceKernel(name, platform);
-    if (name == IntegrateRigidBodyStepKernel::Name())
-        return new ReferenceIntegrateRigidBodyStepKernel(name, platform, data);
-    throw OpenMMException((std::string("Tried to create kernel with illegal kernel name '")+name+"'").c_str());
 }

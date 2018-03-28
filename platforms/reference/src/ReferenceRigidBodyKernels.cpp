@@ -34,6 +34,7 @@
 #include "openmm/OpenMMException.h"
 #include "openmm/internal/ContextImpl.h"
 #include "openmm/reference/RealVec.h"
+#include "openmm/reference/ReferenceConstraints.h"
 #include "openmm/reference/ReferencePlatform.h"
 
 using namespace RigidBodyPlugin;
@@ -45,9 +46,55 @@ static vector<RealVec>& extractPositions(ContextImpl& context) {
     return *((vector<RealVec>*) data->positions);
 }
 
+static vector<RealVec>& extractVelocities(ContextImpl& context) {
+    ReferencePlatform::PlatformData* data = reinterpret_cast<ReferencePlatform::PlatformData*>(context.getPlatformData());
+    return *((vector<RealVec>*) data->velocities);
+}
+
 static vector<RealVec>& extractForces(ContextImpl& context) {
     ReferencePlatform::PlatformData* data = reinterpret_cast<ReferencePlatform::PlatformData*>(context.getPlatformData());
     return *((vector<RealVec>*) data->forces);
+}
+
+static ReferenceConstraints& extractConstraints(ContextImpl& context) {
+    ReferencePlatform::PlatformData* data = reinterpret_cast<ReferencePlatform::PlatformData*>(context.getPlatformData());
+    return *(ReferenceConstraints*) data->constraints;
+}
+
+/**
+ * Compute the kinetic energy of the system, possibly shifting the velocities in time to account
+ * for a leapfrog integrator.
+ */
+static double computeShiftedKineticEnergy(ContextImpl& context, vector<double>& masses, double timeShift) {
+    vector<Vec3>& posData = extractPositions(context);
+    vector<Vec3>& velData = extractVelocities(context);
+    vector<Vec3>& forceData = extractForces(context);
+    int numParticles = context.getSystem().getNumParticles();
+    
+    // Compute the shifted velocities.
+    
+    vector<Vec3> shiftedVel(numParticles);
+    for (int i = 0; i < numParticles; ++i) {
+        if (masses[i] > 0)
+            shiftedVel[i] = velData[i]+forceData[i]*(timeShift/masses[i]);
+        else
+            shiftedVel[i] = velData[i];
+    }
+    
+    // Apply constraints to them.
+    
+    vector<double> inverseMasses(numParticles);
+    for (int i = 0; i < numParticles; i++)
+        inverseMasses[i] = (masses[i] == 0 ? 0 : 1/masses[i]);
+    extractConstraints(context).applyToVelocities(posData, shiftedVel, inverseMasses, 1e-4);
+    
+    // Compute the kinetic energy.
+    
+    double energy = 0.0;
+    for (int i = 0; i < numParticles; ++i)
+        if (masses[i] > 0)
+            energy += masses[i]*(shiftedVel[i].dot(shiftedVel[i]));
+    return 0.5*energy;
 }
 
 void ReferenceCalcRigidBodyForceKernel::initialize(const System& system, const RigidBodyForce& force) {
@@ -96,4 +143,39 @@ void ReferenceCalcRigidBodyForceKernel::copyParametersToContext(ContextImpl& con
         if (p1 != particle1[i] || p2 != particle2[i])
             throw OpenMMException("updateParametersInContext: A particle index has changed");
     }
+}
+
+ReferenceIntegrateRigidBodyStepKernel::~ReferenceIntegrateRigidBodyStepKernel() {
+    if (dynamics)
+        delete dynamics;
+}
+
+void ReferenceIntegrateRigidBodyStepKernel::initialize(const System& system, const RigidBodyIntegrator& integrator) {
+    int numParticles = system.getNumParticles();
+    masses.resize(numParticles);
+    for (int i = 0; i < numParticles; ++i)
+        masses[i] = system.getParticleMass(i);
+}
+
+void ReferenceIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+    double stepSize = integrator.getStepSize();
+    vector<Vec3>& posData = extractPositions(context);
+    vector<Vec3>& velData = extractVelocities(context);
+    vector<Vec3>& forceData = extractForces(context);
+    if (dynamics == 0 || stepSize != prevStepSize) {
+        // Recreate the computation objects with the new parameters.
+        
+        if (dynamics)
+            delete dynamics;
+        dynamics = new ReferenceRigidBodyDynamics(context.getSystem().getNumParticles(), stepSize);
+        dynamics->setReferenceConstraintAlgorithm(&extractConstraints(context));
+        prevStepSize = stepSize;
+    }
+    dynamics->update(context.getSystem(), posData, velData, forceData, masses, integrator.getConstraintTolerance());
+    data.time += stepSize;
+    data.stepCount++;
+}
+
+double ReferenceIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+    return computeShiftedKineticEnergy(context, masses, 0.5*integrator.getStepSize());
 }
