@@ -1,19 +1,13 @@
-OpenMM RigidBody Plugin
-=====================
+OpenMM RigidBody Plugin (Under Construction)
+=======================
 
-This project is an rigidbody of how to write a plugin for [OpenMM](https://simtk.org/home/openmm).
-It includes nearly everything you would want in a real plugin, including implementations for the
-Reference, OpenCL, and CUDA platforms, serialization support, test cases, and a Python API.  It
-is useful as a starting point for anyone who wants to write a plugin.
+This project is an implemention of rigid-body dynamics for [OpenMM](http://openmm.org).
 
-This plugin defines a single Force subclass called RigidBodyForce, which implements an anharmonic
-bond force of the form E(r)=k*r<sup>4</sup>.  Of course, you don't actually need a plugin to
-implement a force of that form: you could do it trivially with CustomBondForce.  But since it is
-so simple, it makes a very good rigidbody.
+The formulation is based on the paper:
 
-I assume you are already familiar with the OpenMM API, and that you have already read the OpenMM
-Developer Guide.  If not, go read it now.  I will not repeat anything that is covered there, and
-only focus on what is unique to this plugin.
+A. J. Silveira and C. R. A. Abreu, Molecular dynamics with rigid bodies: Alternative formulation
+and assessment of its limitations when employed to simulate liquid water, Journal of Chemical
+Physics 2017, 147, 124104, doi: [10.1063/1.5003636](https://doi.org/10.1063%2F1.5003636)
 
 
 Building The Plugin
@@ -131,32 +125,21 @@ install the module.  Once you do that, you can use the plugin from your Python s
 License
 =======
 
-This is part of the OpenMM molecular simulation toolkit originating from
-Simbios, the NIH National Center for Physics-Based Simulation of
-Biological Structures at Stanford, funded under the NIH Roadmap for
-Medical Research, grant U54 GM072970. See https://simtk.org.
+MIT License
 
-Portions copyright (c) 2014 Stanford University and the Authors.
+Copyright (c) 2018, Charlles R. A. Abreu
 
-Authors: Peter Eastman
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+and associated documentation files (the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-Contributors:
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
 
-Permission is hereby granted, free of charge, to any person obtaining a
-copy of this software and associated documentation files (the "Software"),
-to deal in the Software without restriction, including without limitation
-the rights to use, copy, modify, merge, publish, distribute, sublicense,
-and/or sell copies of the Software, and to permit persons to whom the
-Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-THE AUTHORS, CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-USE OR OTHER DEALINGS IN THE SOFTWARE.
-
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

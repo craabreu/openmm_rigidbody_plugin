@@ -1,13 +1,13 @@
 /* -------------------------------------------------------------------------- *
- *                                OpenMMRigidBody                                 *
+ *                                   OpenMM                                   *
  * -------------------------------------------------------------------------- *
  * This is part of the OpenMM molecular simulation toolkit originating from   *
  * Simbios, the NIH National Center for Physics-Based Simulation of           *
  * Biological Structures at Stanford, funded under the NIH Roadmap for        *
  * Medical Research, grant U54 GM072970. See https://simtk.org.               *
  *                                                                            *
- * Portions copyright (c) 2014 Stanford University and the Authors.           *
- * Authors: Peter Eastman                                                     *
+ * Portions copyright (c) 2010-2015 Stanford University and the Authors.      *
+ * Authors: Peter Eastman, Yutong Zhao                                        *
  * Contributors:                                                              *
  *                                                                            *
  * Permission is hereby granted, free of charge, to any person obtaining a    *
@@ -29,39 +29,40 @@
  * USE OR OTHER DEALINGS IN THE SOFTWARE.                                     *
  * -------------------------------------------------------------------------- */
 
-#ifdef WIN32
-#include <windows.h>
-#include <sstream>
-#else
-#include <dlfcn.h>
-#include <dirent.h>
-#include <cstdlib>
-#endif
-
-#include "RigidBodyForce.h"
-#include "RigidBodyForceProxy.h"
-
+#include "openmm/internal/AssertionUtilities.h"
 #include "RigidBodyIntegrator.h"
-#include "RigidBodyIntegratorProxy.h"
+#include "openmm/serialization/XmlSerializer.h"
+#include <iostream>
+#include <sstream>
+#include <stdlib.h>
 
-#include "openmm/serialization/SerializationProxy.h"
-
-#if defined(WIN32)
-    #include <windows.h>
-    extern "C" OPENMM_EXPORT_RIGIDBODY void registerRigidBodySerializationProxies();
-    BOOL WINAPI DllMain(HANDLE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved) {
-        if (ul_reason_for_call == DLL_PROCESS_ATTACH)
-            registerRigidBodySerializationProxies();
-        return TRUE;
-    }
-#else
-    extern "C" void __attribute__((constructor)) registerRigidBodySerializationProxies();
-#endif
+#include <fstream>
 
 using namespace RigidBodyPlugin;
 using namespace OpenMM;
+using namespace std;
 
-extern "C" OPENMM_EXPORT_RIGIDBODY void registerRigidBodySerializationProxies() {
-    SerializationProxy::registerProxy(typeid(RigidBodyForce), new RigidBodyForceProxy());
-    SerializationProxy::registerProxy(typeid(RigidBodyIntegrator), new RigidBodyIntegratorProxy());
+extern "C" void registerRigidBodySerializationProxies();
+
+void testSerializeRigidBodyIntegrator() {
+    RigidBodyIntegrator *intg = new RigidBodyIntegrator(0.00342);
+    stringstream ss;
+    XmlSerializer::serialize<Integrator>(intg, "RigidBodyIntegrator", ss);
+    RigidBodyIntegrator *intg2 = dynamic_cast<RigidBodyIntegrator*>(XmlSerializer::deserialize<Integrator>(ss));
+    ASSERT_EQUAL(intg->getConstraintTolerance(), intg2->getConstraintTolerance());
+    ASSERT_EQUAL(intg->getStepSize(), intg2->getStepSize());
+    delete intg;
+    delete intg2;
+}
+
+int main() {
+    try {
+        testSerializeRigidBodyIntegrator();
+    }
+    catch(const exception& e) {
+        cout << "exception: " << e.what() << endl;
+        return 1;
+    }
+    cout << "Done" << endl;
+    return 0;
 }
