@@ -78,6 +78,40 @@ private:
     OpenMM::CudaArray* params;
 };
 
+/**
+ * This kernel is invoked by RigidBodyIntegrator to take one time step.
+ */
+class CudaIntegrateRigidBodyStepKernel : public IntegrateRigidBodyStepKernel {
+public:
+    CudaIntegrateRigidBodyStepKernel(std::string name, const OpenMM::Platform& platform, OpenMM::CudaContext& cu) :
+        IntegrateRigidBodyStepKernel(name, platform), cu(cu) {
+    }
+    /**
+     * Initialize the kernel.
+     *
+     * @param system     the System this kernel will be applied to
+     * @param integrator the RigidBodyIntegrator this kernel will be used for
+     */
+    void initialize(const OpenMM::System& system, const RigidBodyIntegrator& integrator);
+    /**
+     * Execute the kernel.
+     *
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    void execute(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
+    /**
+     * Compute the kinetic energy.
+     * 
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    double computeKineticEnergy(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
+private:
+    OpenMM::CudaContext& cu;
+    CUfunction kernel1, kernel2;
+};
+
 } // namespace RigidBodyPlugin
 
 #endif /*CUDA_RIGIDBODY_KERNELS_H_*/

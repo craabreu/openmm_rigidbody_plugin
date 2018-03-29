@@ -34,6 +34,7 @@
 #include "openmm/internal/ContextImpl.h"
 #include "openmm/cuda/CudaBondedUtilities.h"
 #include "openmm/cuda/CudaForceInfo.h"
+#include "openmm/cuda/CudaIntegrationUtilities.h"
 
 using namespace RigidBodyPlugin;
 using namespace OpenMM;
@@ -122,4 +123,50 @@ void CudaCalcRigidBodyForceKernel::copyParametersToContext(ContextImpl& context,
     // Mark that the current reordering may be invalid.
     
     cu.invalidateMolecules();
+}
+
+void CudaIntegrateRigidBodyStepKernel::initialize(const System& system, const RigidBodyIntegrator& integrator) {
+    cu.getPlatformData().initializeContexts(system);
+    cu.setAsCurrent();
+    map<string, string> defines;
+    CUmodule module = cu.createModule(CudaRigidBodyKernelSources::verlet, defines, "");
+    kernel1 = cu.getKernel(module, "integrateRigidBodyPart1");
+    kernel2 = cu.getKernel(module, "integrateRigidBodyPart2");
+}
+
+void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+    cu.setAsCurrent();
+    CudaIntegrationUtilities& integration = cu.getIntegrationUtilities();
+    int numAtoms = cu.getNumAtoms();
+    int paddedNumAtoms = cu.getPaddedNumAtoms();
+    double dt = integrator.getStepSize();
+    cu.getIntegrationUtilities().setNextStepSize(dt);
+
+    // Call the first integration kernel.
+
+    CUdeviceptr posCorrection = (cu.getUseMixedPrecision() ? cu.getPosqCorrection().getDevicePointer() : 0);
+    void* args1[] = {&numAtoms, &paddedNumAtoms, &cu.getIntegrationUtilities().getStepSize().getDevicePointer(), &cu.getPosq().getDevicePointer(), &posCorrection,
+            &cu.getVelm().getDevicePointer(), &cu.getForce().getDevicePointer(), &integration.getPosDelta().getDevicePointer()};
+    cu.executeKernel(kernel1, args1, numAtoms, 128);
+
+    // Apply constraints.
+
+    integration.applyConstraints(integrator.getConstraintTolerance());
+
+    // Call the second integration kernel.
+
+    void* args2[] = {&numAtoms, &cu.getIntegrationUtilities().getStepSize().getDevicePointer(), &cu.getPosq().getDevicePointer(), &posCorrection,
+            &cu.getVelm().getDevicePointer(), &integration.getPosDelta().getDevicePointer()};
+    cu.executeKernel(kernel2, args2, numAtoms, 128);
+    integration.computeVirtualSites();
+
+    // Update the time and step count.
+
+    cu.setTime(cu.getTime()+dt);
+    cu.setStepCount(cu.getStepCount()+1);
+    cu.reorderAtoms();
+}
+
+double CudaIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+    return cu.getIntegrationUtilities().computeKineticEnergy(0.5*integrator.getStepSize());
 }
