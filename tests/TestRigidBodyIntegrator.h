@@ -231,7 +231,7 @@ void runPlatformTests();
 
 int main(int argc, char* argv[]) {
     try {
-        registerRigidBodyCudaKernelFactories();
+        registerCurrentPlatformKernelFactories();
         Platform& platform = Platform::getPlatformByName(platformName);
         initializeTests(platform, argc, argv);
         testSingleBond(platform);

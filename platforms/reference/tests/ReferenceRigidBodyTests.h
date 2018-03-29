@@ -33,18 +33,16 @@
   #define _USE_MATH_DEFINES // Needed to get M_PI
 #endif
 
-#include "openmm/cuda/CudaPlatform.h"
+#include "openmm/reference/ReferencePlatform.h"
 #include <string>
 
-extern "C" OPENMM_EXPORT void registerRigidBodyCudaKernelFactories();
+extern "C" OPENMM_EXPORT void registerRigidBodyReferenceKernelFactories();
 
-std::string platformName = "CUDA";
+std::string platformName = "Reference";
 
 void registerCurrentPlatformKernelFactories() {
-  registerRigidBodyCudaKernelFactories();
+  registerRigidBodyReferenceKernelFactories();
 }
 
 void initializeTests(OpenMM::Platform& platform, int argc, char* argv[]) {
-    if (argc > 1)
-      platform.setPropertyDefaultValue("Precision", std::string(argv[1]));
 }
