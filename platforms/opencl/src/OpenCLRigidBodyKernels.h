@@ -79,6 +79,42 @@ private:
     OpenMM::OpenCLArray* params;
 };
 
+/**
+ * This kernel is invoked by RigidBodyIntegrator to take one time step.
+ */
+class OpenCLIntegrateRigidBodyStepKernel : public IntegrateRigidBodyStepKernel {
+public:
+    OpenCLIntegrateRigidBodyStepKernel(std::string name, const OpenMM::Platform& platform, OpenMM::OpenCLContext& cl) : IntegrateRigidBodyStepKernel(name, platform), cl(cl),
+            hasInitializedKernels(false) {
+    }
+    ~OpenCLIntegrateRigidBodyStepKernel();
+    /**
+     * Initialize the kernel.
+     *
+     * @param system     the System this kernel will be applied to
+     * @param integrator the RigidBodyIntegrator this kernel will be used for
+     */
+    void initialize(const OpenMM::System& system, const RigidBodyIntegrator& integrator);
+    /**
+     * Execute the kernel.
+     *
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    void execute(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
+    /**
+     * Compute the kinetic energy.
+     * 
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    double computeKineticEnergy(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
+private:
+    OpenMM::OpenCLContext& cl;
+    bool hasInitializedKernels;
+    cl::Kernel kernel1, kernel2;
+};
+
 } // namespace RigidBodyPlugin
 
 #endif /*OPENCL_RIGIDBODY_KERNELS_H_*/

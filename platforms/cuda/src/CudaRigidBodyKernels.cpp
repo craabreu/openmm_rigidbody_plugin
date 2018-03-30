@@ -129,7 +129,7 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system, const Ri
     cu.getPlatformData().initializeContexts(system);
     cu.setAsCurrent();
     map<string, string> defines;
-    CUmodule module = cu.createModule(CudaRigidBodyKernelSources::verlet, defines, "");
+    CUmodule module = cu.createModule(CudaRigidBodyKernelSources::rigidbodyintegrator, defines, "");
     kernel1 = cu.getKernel(module, "integrateRigidBodyPart1");
     kernel2 = cu.getKernel(module, "integrateRigidBodyPart2");
 }

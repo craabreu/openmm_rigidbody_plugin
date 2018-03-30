@@ -46,5 +46,5 @@ void registerCurrentPlatformKernelFactories() {
 
 void initializeTests(OpenMM::Platform& platform, int argc, char* argv[]) {
     if (argc > 1)
-      platform.setPropertyDefaultValue("Precision", std::string(argv[1]));
+      platform.setPropertyDefaultValue("CudaPrecision", std::string(argv[1]));
 }

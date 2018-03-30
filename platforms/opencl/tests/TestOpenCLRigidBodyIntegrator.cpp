@@ -1,12 +1,12 @@
 /* -------------------------------------------------------------------------- *
- *                              OpenMMRigidBody                                   *
+ *                                   OpenMM                                   *
  * -------------------------------------------------------------------------- *
  * This is part of the OpenMM molecular simulation toolkit originating from   *
  * Simbios, the NIH National Center for Physics-Based Simulation of           *
  * Biological Structures at Stanford, funded under the NIH Roadmap for        *
  * Medical Research, grant U54 GM072970. See https://simtk.org.               *
  *                                                                            *
- * Portions copyright (c) 2014 Stanford University and the Authors.           *
+ * Portions copyright (c) 2015 Stanford University and the Authors.           *
  * Authors: Peter Eastman                                                     *
  * Contributors:                                                              *
  *                                                                            *
@@ -29,47 +29,8 @@
  * USE OR OTHER DEALINGS IN THE SOFTWARE.                                     *
  * -------------------------------------------------------------------------- */
 
-#include <exception>
+#include "OpenCLRigidBodyTests.h"
+#include "TestRigidBodyIntegrator.h"
 
-#include "OpenCLRigidBodyKernelFactory.h"
-#include "OpenCLRigidBodyKernels.h"
-#include "openmm/internal/windowsExport.h"
-#include "openmm/internal/ContextImpl.h"
-#include "openmm/OpenMMException.h"
-
-using namespace RigidBodyPlugin;
-using namespace OpenMM;
-
-extern "C" OPENMM_EXPORT void registerPlatforms() {
-}
-
-extern "C" OPENMM_EXPORT void registerKernelFactories() {
-    try {
-        Platform& platform = Platform::getPlatformByName("OpenCL");
-        OpenCLRigidBodyKernelFactory* factory = new OpenCLRigidBodyKernelFactory();
-        platform.registerKernelFactory(CalcRigidBodyForceKernel::Name(), factory);
-        platform.registerKernelFactory(IntegrateRigidBodyStepKernel::Name(), factory);
-    }
-    catch (std::exception ex) {
-        // Ignore
-    }
-}
-
-extern "C" OPENMM_EXPORT void registerRigidBodyOpenCLKernelFactories() {
-    try {
-        Platform::getPlatformByName("OpenCL");
-    }
-    catch (...) {
-        Platform::registerPlatform(new OpenCLPlatform());
-    }
-    registerKernelFactories();
-}
-
-KernelImpl* OpenCLRigidBodyKernelFactory::createKernelImpl(std::string name, const Platform& platform, ContextImpl& context) const {
-    OpenCLContext& cl = *static_cast<OpenCLPlatform::PlatformData*>(context.getPlatformData())->contexts[0];
-    if (name == CalcRigidBodyForceKernel::Name())
-        return new OpenCLCalcRigidBodyForceKernel(name, platform, cl, context.getSystem());
-    if (name == IntegrateRigidBodyStepKernel::Name())
-        return new OpenCLIntegrateRigidBodyStepKernel(name, platform, cl);
-    throw OpenMMException((std::string("Tried to create kernel with illegal kernel name '")+name+"'").c_str());
+void runPlatformTests() {
 }
