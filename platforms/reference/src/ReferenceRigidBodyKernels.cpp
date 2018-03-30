@@ -30,7 +30,6 @@
  * -------------------------------------------------------------------------- */
 
 #include "ReferenceRigidBodyKernels.h"
-#include "RigidBodyForce.h"
 #include "openmm/OpenMMException.h"
 #include "openmm/internal/ContextImpl.h"
 #include "openmm/reference/RealVec.h"
@@ -95,54 +94,6 @@ static double computeShiftedKineticEnergy(ContextImpl& context, vector<double>& 
         if (masses[i] > 0)
             energy += masses[i]*(shiftedVel[i].dot(shiftedVel[i]));
     return 0.5*energy;
-}
-
-void ReferenceCalcRigidBodyForceKernel::initialize(const System& system, const RigidBodyForce& force) {
-    // Initialize bond parameters.
-    
-    int numBonds = force.getNumBonds();
-    particle1.resize(numBonds);
-    particle2.resize(numBonds);
-    length.resize(numBonds);
-    k.resize(numBonds);
-    for (int i = 0; i < numBonds; i++)
-        force.getBondParameters(i, particle1[i], particle2[i], length[i], k[i]);
-}
-
-double ReferenceCalcRigidBodyForceKernel::execute(ContextImpl& context, bool includeForces, bool includeEnergy) {
-    vector<RealVec>& pos = extractPositions(context);
-    vector<RealVec>& force = extractForces(context);
-    int numBonds = particle1.size();
-    double energy = 0;
-    
-    // Compute the interactions.
-    
-    for (int i = 0; i < numBonds; i++) {
-        int p1 = particle1[i];
-        int p2 = particle2[i];
-        RealVec delta = pos[p1]-pos[p2];
-        RealOpenMM r2 = delta.dot(delta);
-        RealOpenMM r = sqrt(r2);
-        RealOpenMM dr = (r-length[i]);
-        RealOpenMM dr2 = dr*dr;
-        energy += k[i]*dr2*dr2;
-        RealOpenMM dEdR = 4*k[i]*dr2*dr;
-        dEdR = (r > 0) ? (dEdR/r) : 0;
-        force[p1] -= delta*dEdR;
-        force[p2] += delta*dEdR;
-    }
-    return energy;
-}
-
-void ReferenceCalcRigidBodyForceKernel::copyParametersToContext(ContextImpl& context, const RigidBodyForce& force) {
-    if (force.getNumBonds() != particle1.size())
-        throw OpenMMException("updateParametersInContext: The number of RigidBody bonds has changed");
-    for (int i = 0; i < force.getNumBonds(); i++) {
-        int p1, p2;
-        force.getBondParameters(i, p1, p2, length[i], k[i]);
-        if (p1 != particle1[i] || p2 != particle2[i])
-            throw OpenMMException("updateParametersInContext: A particle index has changed");
-    }
 }
 
 ReferenceIntegrateRigidBodyStepKernel::~ReferenceIntegrateRigidBodyStepKernel() {

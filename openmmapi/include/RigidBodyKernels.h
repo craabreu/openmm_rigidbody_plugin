@@ -32,7 +32,6 @@
  * USE OR OTHER DEALINGS IN THE SOFTWARE.                                     *
  * -------------------------------------------------------------------------- */
 
-#include "RigidBodyForce.h"
 #include "RigidBodyIntegrator.h"
 #include "openmm/KernelImpl.h"
 #include "openmm/Platform.h"
@@ -40,41 +39,6 @@
 #include <string>
 
 namespace RigidBodyPlugin {
-
-/**
- * This kernel is invoked by RigidBodyForce to calculate the forces acting on the system and the energy of the system.
- */
-class CalcRigidBodyForceKernel : public OpenMM::KernelImpl {
-public:
-    static std::string Name() {
-        return "CalcRigidBodyForce";
-    }
-    CalcRigidBodyForceKernel(std::string name, const OpenMM::Platform& platform) : OpenMM::KernelImpl(name, platform) {
-    }
-    /**
-     * Initialize the kernel.
-     * 
-     * @param system     the System this kernel will be applied to
-     * @param force      the RigidBodyForce this kernel will be used for
-     */
-    virtual void initialize(const OpenMM::System& system, const RigidBodyForce& force) = 0;
-    /**
-     * Execute the kernel to calculate the forces and/or energy.
-     *
-     * @param context        the context in which to execute this kernel
-     * @param includeForces  true if forces should be calculated
-     * @param includeEnergy  true if the energy should be calculated
-     * @return the potential energy due to the force
-     */
-    virtual double execute(OpenMM::ContextImpl& context, bool includeForces, bool includeEnergy) = 0;
-    /**
-     * Copy changed parameters over to a context.
-     *
-     * @param context    the context to copy parameters to
-     * @param force      the RigidBodyForce to copy the parameters from
-     */
-    virtual void copyParametersToContext(OpenMM::ContextImpl& context, const RigidBodyForce& force) = 0;
-};
 
 /**
  * This kernel is invoked by RigidBodyIntegrator to take one time step.

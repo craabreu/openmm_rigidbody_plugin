@@ -47,7 +47,6 @@ extern "C" OPENMM_EXPORT void registerKernelFactories() {
     try {
         Platform& platform = Platform::getPlatformByName("CUDA");
         CudaRigidBodyKernelFactory* factory = new CudaRigidBodyKernelFactory();
-        platform.registerKernelFactory(CalcRigidBodyForceKernel::Name(), factory);
         platform.registerKernelFactory(IntegrateRigidBodyStepKernel::Name(), factory);
     }
     catch (std::exception ex) {
@@ -67,8 +66,6 @@ extern "C" OPENMM_EXPORT void registerRigidBodyCudaKernelFactories() {
 
 KernelImpl* CudaRigidBodyKernelFactory::createKernelImpl(std::string name, const Platform& platform, ContextImpl& context) const {
     CudaContext& cu = *static_cast<CudaPlatform::PlatformData*>(context.getPlatformData())->contexts[0];
-    if (name == CalcRigidBodyForceKernel::Name())
-        return new CudaCalcRigidBodyForceKernel(name, platform, cu, context.getSystem());
     if (name == IntegrateRigidBodyStepKernel::Name())
         return new CudaIntegrateRigidBodyStepKernel(name, platform, cu);
     throw OpenMMException((std::string("Tried to create kernel with illegal kernel name '")+name+"'").c_str());

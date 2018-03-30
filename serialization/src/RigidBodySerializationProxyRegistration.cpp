@@ -38,9 +38,6 @@
 #include <cstdlib>
 #endif
 
-#include "RigidBodyForce.h"
-#include "RigidBodyForceProxy.h"
-
 #include "RigidBodyIntegrator.h"
 #include "RigidBodyIntegratorProxy.h"
 
@@ -62,6 +59,5 @@ using namespace RigidBodyPlugin;
 using namespace OpenMM;
 
 extern "C" OPENMM_EXPORT_RIGIDBODY void registerRigidBodySerializationProxies() {
-    SerializationProxy::registerProxy(typeid(RigidBodyForce), new RigidBodyForceProxy());
     SerializationProxy::registerProxy(typeid(RigidBodyIntegrator), new RigidBodyIntegratorProxy());
 }

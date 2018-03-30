@@ -47,7 +47,6 @@ extern "C" OPENMM_EXPORT void registerKernelFactories() {
     try {
         Platform& platform = Platform::getPlatformByName("OpenCL");
         OpenCLRigidBodyKernelFactory* factory = new OpenCLRigidBodyKernelFactory();
-        platform.registerKernelFactory(CalcRigidBodyForceKernel::Name(), factory);
         platform.registerKernelFactory(IntegrateRigidBodyStepKernel::Name(), factory);
     }
     catch (std::exception ex) {
@@ -67,8 +66,6 @@ extern "C" OPENMM_EXPORT void registerRigidBodyOpenCLKernelFactories() {
 
 KernelImpl* OpenCLRigidBodyKernelFactory::createKernelImpl(std::string name, const Platform& platform, ContextImpl& context) const {
     OpenCLContext& cl = *static_cast<OpenCLPlatform::PlatformData*>(context.getPlatformData())->contexts[0];
-    if (name == CalcRigidBodyForceKernel::Name())
-        return new OpenCLCalcRigidBodyForceKernel(name, platform, cl, context.getSystem());
     if (name == IntegrateRigidBodyStepKernel::Name())
         return new OpenCLIntegrateRigidBodyStepKernel(name, platform, cl);
     throw OpenMMException((std::string("Tried to create kernel with illegal kernel name '")+name+"'").c_str());
