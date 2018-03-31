@@ -5,7 +5,13 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 # We need to know where OpenMM is installed so we can access the headers and libraries.
-SET(OPENMM_DIR "/usr/local/openmm" CACHE PATH "Where OpenMM is installed")
+IF(NOT OPENMM_DIR)
+    IF(WIN32)
+        SET(OPENMM_DIR "$ENV{ProgramFiles}/OpenMM" CACHE PATH "Where OpenMM is installed")
+    ELSE(WIN32)
+        SET(OPENMM_DIR "/usr/local/openmm" CACHE PATH "Where OpenMM is installed")
+    ENDIF(WIN32)
+ENDIF(NOT OPENMM_DIR)
 INCLUDE_DIRECTORIES("${OPENMM_DIR}/include")
 LINK_DIRECTORIES("${OPENMM_DIR}/lib" "${OPENMM_DIR}/lib/plugins")
 
@@ -20,11 +26,7 @@ ENDIF(APPLE)
 
 # Select where to install
 IF(${CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT})
-    IF(WIN32)
-        SET(CMAKE_INSTALL_PREFIX "$ENV{ProgramFiles}/OpenMM" CACHE PATH "Where to install the plugin" FORCE)
-    ELSE(WIN32)
-        SET(CMAKE_INSTALL_PREFIX "/usr/local/openmm" CACHE PATH "Where to install the plugin" FORCE)
-    ENDIF(WIN32)
+    SET(CMAKE_INSTALL_PREFIX ${OPENMM_DIR} CACHE PATH "Where to install the plugin" FORCE)
 ENDIF(${CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT})
 
 # The source is organized into subdirectories, but we handle them all from
