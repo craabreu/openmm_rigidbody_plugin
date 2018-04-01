@@ -51,13 +51,17 @@ public:
      * 
      * @param stepSize the step size with which to integrate the system (in picoseconds)
      */
-    explicit RigidBodyIntegrator(double stepSize);
-   /**
+    explicit RigidBodyIntegrator(double stepSize, const std::vector<int>& bodyIndices);
+    /**
      * Advance a simulation through time by taking a series of time steps.
      * 
      * @param steps   the number of time steps to take
      */
     void step(int steps);
+    /**
+     * Retrieve a vector of integers containing the rigid-body indices.
+     */
+    std::vector<int> getBodyIndices() const;
 protected:
     /**
      * This will be called by the Context when it is created.  It informs the Integrator
@@ -79,6 +83,7 @@ protected:
      */
     double computeKineticEnergy();
 private:
+    std::vector<int> bodyIndices;
     OpenMM::Kernel kernel;
 };
 

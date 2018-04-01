@@ -42,9 +42,10 @@ using namespace OpenMM;
 using std::string;
 using std::vector;
 
-RigidBodyIntegrator::RigidBodyIntegrator(double stepSize) {
+RigidBodyIntegrator::RigidBodyIntegrator(double stepSize, const vector<int>& bodyIndices) {
     setStepSize(stepSize);
     setConstraintTolerance(1e-5);
+    this->bodyIndices = bodyIndices;
 }
 
 void RigidBodyIntegrator::initialize(ContextImpl& contextRef) {
@@ -68,6 +69,10 @@ vector<string> RigidBodyIntegrator::getKernelNames() {
 
 double RigidBodyIntegrator::computeKineticEnergy() {
     return kernel.getAs<IntegrateRigidBodyStepKernel>().computeKineticEnergy(*context, *this);
+}
+
+std::vector<int> RigidBodyIntegrator::getBodyIndices() const {
+    return bodyIndices;
 }
 
 void RigidBodyIntegrator::step(int steps) {

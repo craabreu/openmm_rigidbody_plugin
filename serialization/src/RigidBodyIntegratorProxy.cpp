@@ -45,12 +45,23 @@ void RigidBodyIntegratorProxy::serialize(const void* object, SerializationNode& 
     const RigidBodyIntegrator& integrator = *reinterpret_cast<const RigidBodyIntegrator*>(object);
     node.setDoubleProperty("stepSize", integrator.getStepSize());
     node.setDoubleProperty("constraintTolerance", integrator.getConstraintTolerance());
+    vector<int> bodyIndices;
+    bodyIndices = integrator.getBodyIndices();
+    SerializationNode& bodyIndicesNode = node.createChildNode("bodyIndices");
+    for (auto index : bodyIndices)
+        bodyIndicesNode.createChildNode("bodyIndex").setIntProperty("index", index);
 }
 
 void* RigidBodyIntegratorProxy::deserialize(const SerializationNode& node) const {
     if (node.getIntProperty("version") != 1)
         throw OpenMMException("Unsupported version number");
-    RigidBodyIntegrator *integrator = new RigidBodyIntegrator(node.getDoubleProperty("stepSize"));
-    integrator->setConstraintTolerance(node.getDoubleProperty("constraintTolerance"));
+    double stepSize = node.getDoubleProperty("stepSize");
+    double constraintTolerance = node.getDoubleProperty("constraintTolerance");
+    const SerializationNode& bodyIndicesNode = node.getChildNode("bodyIndices");
+    vector<int> bodyIndices;
+    for (auto& child : bodyIndicesNode.getChildren())
+        bodyIndices.push_back(child.getIntProperty("index"));
+    RigidBodyIntegrator *integrator = new RigidBodyIntegrator(stepSize, bodyIndices);
+    integrator->setConstraintTolerance(constraintTolerance);
     return integrator;
 }

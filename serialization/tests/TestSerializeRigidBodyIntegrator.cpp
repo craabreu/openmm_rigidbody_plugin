@@ -37,6 +37,7 @@
 #include <stdlib.h>
 
 #include <fstream>
+#include <vector>
 
 using namespace RigidBodyPlugin;
 using namespace OpenMM;
@@ -45,12 +46,18 @@ using namespace std;
 extern "C" void registerRigidBodySerializationProxies();
 
 void testSerializeRigidBodyIntegrator() {
-    RigidBodyIntegrator *intg = new RigidBodyIntegrator(0.00342);
+    vector<int> bodyIndices;
+    int indices[] = {5, 4, 3, 2, 1};
+    bodyIndices.assign(indices, indices+5);
+    RigidBodyIntegrator *intg = new RigidBodyIntegrator(0.00342, bodyIndices);
     stringstream ss;
     XmlSerializer::serialize<Integrator>(intg, "RigidBodyIntegrator", ss);
     RigidBodyIntegrator *intg2 = dynamic_cast<RigidBodyIntegrator*>(XmlSerializer::deserialize<Integrator>(ss));
     ASSERT_EQUAL(intg->getConstraintTolerance(), intg2->getConstraintTolerance());
     ASSERT_EQUAL(intg->getStepSize(), intg2->getStepSize());
+    int i = 0;
+    for (auto index : intg2->getBodyIndices())
+        ASSERT_EQUAL(index, indices[i++]);
     delete intg;
     delete intg2;
 }

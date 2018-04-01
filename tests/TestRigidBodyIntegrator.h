@@ -50,7 +50,8 @@ void testSingleBond(Platform& platform) {
     System system;
     system.addParticle(2.0);
     system.addParticle(2.0);
-    RigidBodyIntegrator integrator(0.01);
+    vector<int> bodyIndices (1, 0);
+    RigidBodyIntegrator integrator(0.01, bodyIndices);
     HarmonicBondForce* forceField = new HarmonicBondForce();
     forceField->addBond(0, 1, 1.5, 1);
     system.addForce(forceField);
@@ -85,7 +86,8 @@ void testConstraints(Platform& platform) {
     const int numParticles = 8;
     const int numConstraints = 5;
     System system;
-    RigidBodyIntegrator integrator(0.001);
+    vector<int> bodyIndices (1, 0);
+    RigidBodyIntegrator integrator(0.001, bodyIndices);
     integrator.setConstraintTolerance(1e-5);
     NonbondedForce* forceField = new NonbondedForce();
     for (int i = 0; i < numParticles; ++i) {
@@ -137,7 +139,8 @@ void testConstraints(Platform& platform) {
 void testConstrainedClusters(Platform& platform) {
     const int numParticles = 7;
     System system;
-    RigidBodyIntegrator integrator(0.001);
+    vector<int> bodyIndices (1, 0);
+    RigidBodyIntegrator integrator(0.001, bodyIndices);
     integrator.setConstraintTolerance(1e-5);
     NonbondedForce* forceField = new NonbondedForce();
     for (int i = 0; i < numParticles; ++i) {
@@ -204,7 +207,8 @@ void testConstrainedMasslessParticles(Platform& platform) {
     vector<Vec3> positions(2);
     positions[0] = Vec3(-1, 0, 0);
     positions[1] = Vec3(1, 0, 0);
-    RigidBodyIntegrator integrator(0.01);
+    vector<int> bodyIndices (1, 0);
+    RigidBodyIntegrator integrator(0.01, bodyIndices);
     bool failed = false;
     try {
         // This should throw an exception.
