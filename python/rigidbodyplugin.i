@@ -113,20 +113,21 @@ class ForceField(app.ForceField):
                     n += 1
                     for i in [a.index for a in res.atoms() if a.name in body.atoms]:
                         index[i] = n
-        if merge is None:
-            return index
-        else:
+        if merge is not None:
             if not hasattr(merge, '__iter__'):
                 raise ValueError('merge parameter is not a sequence')
-            if any(not hasattr(a, '__iter__') for a in merge):
-                raise ValueError('at least one item of merge parameter is not a sequence')
-            mergeSets = _coalesce([set(a) for a in merge])
-            newIndex = [min(a) for a in mergeSets]
-            for (i, body) in enumerate(index):
-                for (j, s) in enumerate(mergeSets):
-                    if body in s:
-                        index[i] = newIndex[j]
-            return index
+            if all(isinstance(a,int) for a in merge):
+                mergeSets = set(set(merge))
+            elif all(hasattr(a, '__iter__') for a in merge):
+                mergeSets = _coalesce([set(a) for a in merge])
+                newIndex = [min(a) for a in mergeSets]
+                for (i, body) in enumerate(index):
+                    for (j, s) in enumerate(mergeSets):
+                        if body in s:
+                            index[i] = newIndex[j]
+            else:
+                 raise ValueError('at least one item of merge parameter is not a sequence')
+        return index
 %}
 
 namespace RigidBodyPlugin {
