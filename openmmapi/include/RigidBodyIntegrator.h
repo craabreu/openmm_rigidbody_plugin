@@ -32,6 +32,7 @@
  * USE OR OTHER DEALINGS IN THE SOFTWARE.                                     *
  * -------------------------------------------------------------------------- */
 
+#include "RigidBodySystem.h"
 #include "openmm/Context.h"
 #include "openmm/Integrator.h"
 #include "openmm/Kernel.h"
@@ -84,6 +85,7 @@ protected:
     double computeKineticEnergy();
 private:
     std::vector<int> bodyIndices;
+    RigidBodySystem* bodySystem;
     OpenMM::Kernel kernel;
 };
 

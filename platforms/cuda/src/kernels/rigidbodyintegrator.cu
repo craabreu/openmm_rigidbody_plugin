@@ -1,4 +1,25 @@
 /**
+ * Define struct for rigid body data.
+ */
+
+extern "C" typedef struct {
+    int    N;    // number of atoms
+    mixed  m;    // mass
+    mixed3 r;    // center-of-mass position
+    mixed3 p;    // center-of-mass momentum
+    mixed3 I;    // principal moments of inertia
+    mixed4 q;    // orientation quaternion
+    mixed3 w;    // angular velocity
+    int*   atom; // pointer to set of atoms
+} bodyData;
+
+
+extern "C" __global__ void getBodyDataSize(int* __restrict__ size) {
+    size[0] = (int)sizeof(bodyData);
+}
+
+
+/**
  * Perform the first step of RigidBody integration.
  */
 

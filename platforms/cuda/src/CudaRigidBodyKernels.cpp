@@ -31,7 +31,9 @@
 
 #include "CudaRigidBodyKernels.h"
 #include "CudaRigidBodyKernelSources.h"
+#include "RigidBodyIntegrator.h"
 #include "openmm/internal/ContextImpl.h"
+#include "openmm/cuda/CudaPlatform.h"
 #include "openmm/cuda/CudaBondedUtilities.h"
 #include "openmm/cuda/CudaForceInfo.h"
 #include "openmm/cuda/CudaIntegrationUtilities.h"
@@ -40,6 +42,22 @@ using namespace RigidBodyPlugin;
 using namespace OpenMM;
 using namespace std;
 
+int CudaIntegrateRigidBodyStepKernel::getBodyDataSize(CUmodule& module) {
+    CUfunction kernel = cu.getKernel(module, "getBodyDataSize");
+    CUdeviceptr pointer;
+    CUresult result;
+    result = cuMemAlloc(&pointer, sizeof(int));
+    if (result != CUDA_SUCCESS)
+        throw OpenMMException("Error creating variable for rigid body data size");
+    void* arg[] = {&pointer};
+    cu.executeKernel(kernel, arg, 1, 128);
+    int bodyDataSize;
+    result = cuMemcpyDtoH(&bodyDataSize, pointer, sizeof(int));
+    if (result != CUDA_SUCCESS)
+        throw OpenMMException("Error retrieving rigid body data size from device memory");
+    return bodyDataSize;
+}
+
 void CudaIntegrateRigidBodyStepKernel::initialize(const System& system, const RigidBodyIntegrator& integrator) {
     cu.getPlatformData().initializeContexts(system);
     cu.setAsCurrent();
@@ -47,6 +65,22 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system, const Ri
     CUmodule module = cu.createModule(CudaRigidBodyKernelSources::rigidbodyintegrator, defines, "");
     kernel1 = cu.getKernel(module, "integrateRigidBodyPart1");
     kernel2 = cu.getKernel(module, "integrateRigidBodyPart2");
+
+//    numAtoms = integrator.getNumActualAtoms();
+//    numBodies = integrator.getNumBodies();
+//    numFree = integrator.getNumFreeAtoms();
+
+    // Allocate array of atom indices:
+    int TileSize = cu.TileSize;
+    paddedNumAtoms = TileSize*((numAtoms + TileSize - 1)/TileSize);
+    atomIndex.initialize<int>(cu, paddedNumAtoms, "atomIndex");
+
+    // Allocate array of body data:
+    if (numBodies) {
+        int bodyDataSize = getBodyDataSize(module);
+        paddedNumBodies = cu.TileSize*((numBodies + cu.TileSize - 1)/cu.TileSize);
+        bodyData.initialize(cu, paddedNumBodies, bodyDataSize, "bodyData");
+    }
 }
 
 void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const RigidBodyIntegrator& integrator) {

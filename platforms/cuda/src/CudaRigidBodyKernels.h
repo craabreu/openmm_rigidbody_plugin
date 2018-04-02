@@ -33,6 +33,7 @@
  * -------------------------------------------------------------------------- */
 
 #include "RigidBodyKernels.h"
+#include "RigidBodyIntegrator.h"
 #include "openmm/cuda/CudaContext.h"
 #include "openmm/cuda/CudaArray.h"
 
@@ -68,8 +69,23 @@ public:
      */
     double computeKineticEnergy(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
 private:
+    /**
+     * Determine the size of body data structure in Cuda kernels
+     */
+    int getBodyDataSize(CUmodule& module);
+
     OpenMM::CudaContext& cu;
     CUfunction kernel1, kernel2;
+
+    int numAtoms;                // number of actual atoms
+    int numFree;                 // number of free atoms
+    int numBodies;               // number of rigid bodies
+    OpenMM::CudaArray atomIndex; // array of indices of free atoms and rigid-body atoms (*)
+    OpenMM::CudaArray bodyData;  // array of rigid body data
+    // (*) The first numFree indices must correspond to free atoms
+
+    int paddedNumAtoms;
+    int paddedNumBodies;
 };
 
 } // namespace RigidBodyPlugin

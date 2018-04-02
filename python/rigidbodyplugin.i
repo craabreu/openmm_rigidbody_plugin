@@ -23,7 +23,7 @@ namespace RigidBodyPlugin {
 
 class RigidBodyIntegrator : public OpenMM::Integrator {
 public:
-    explicit RigidBodyIntegrator(double stepSize);
+    explicit RigidBodyIntegrator(double stepSize, const std::vector<int>& bodyIndices);
     void step(int steps);
 };
 
