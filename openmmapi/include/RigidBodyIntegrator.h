@@ -80,6 +80,13 @@ protected:
      */
     std::vector<std::string> getKernelNames();
     /**
+     * This will be called by the Context when the user modifies aspects of the context state, such
+     * as positions, velocities, or parameters.
+     * 
+     * @param changed     this specifies what aspect of the Context was changed
+     */
+    void stateChanged(State::DataType changed);
+    /**
      * Compute the kinetic energy of the system at the current time.
      */
     double computeKineticEnergy();

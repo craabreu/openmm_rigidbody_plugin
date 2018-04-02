@@ -10,8 +10,6 @@
 #include "RigidBodyKernels.h"
 #include <string>
 
-#include <iostream> // TEMPORARY
-
 using namespace RigidBodyPlugin;
 using namespace OpenMM;
 using std::string;
@@ -31,7 +29,7 @@ void RigidBodyIntegrator::initialize(ContextImpl& contextRef) {
     const System *system = &contextRef.getSystem();
     if (system->getNumParticles() != bodyIndices.size())
         throw OpenMMException("Number of body indices differs from that of particles in Context");
-    bodySystem = new RigidBodySystem(system, bodyIndices);
+    bodySystem = new RigidBodySystem(*context, bodyIndices);
     kernel = context->getPlatform().createKernel(IntegrateRigidBodyStepKernel::Name(), contextRef);
     kernel.getAs<IntegrateRigidBodyStepKernel>().initialize(*system, *this);
 }
@@ -44,6 +42,13 @@ vector<string> RigidBodyIntegrator::getKernelNames() {
     std::vector<std::string> names;
     names.push_back(IntegrateRigidBodyStepKernel::Name());
     return names;
+}
+
+void RigidBodyIntegrator::stateChanged(State::DataType changed) {
+    if (changed == State::Positions)
+        bodySystem->update();
+    else if (changed == State::Velocities)
+        bodySystem->updateVelocities();
 }
 
 double RigidBodyIntegrator::computeKineticEnergy() {

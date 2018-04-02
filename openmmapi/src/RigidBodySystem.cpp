@@ -3,21 +3,73 @@
  * -------------------------------------------------------------------------- */
 
 #include "RigidBodySystem.h"
-#include "Vec4.h"
+#include "internal/Vec4.h"
 #include "openmm/Vec3.h"
-#include "openmm/Context.h"
+#include "openmm/internal/ContextImpl.h"
 #include "openmm/System.h"
+#include "internal/dsyevv3.h"
 #include <vector>
+
+#include <iostream> // TEMPORARY
 
 using namespace RigidBodyPlugin;
 using namespace OpenMM;
 using std::vector;
 
-void RigidBody::update(vector<int> atomIndices, ContextImpl& context) {
+void RigidBody::update(vector<Vec3>& R, vector<Vec3>& V, vector<double>& M) {
+    // Compute total mass and center-of-mass position
+    mass = 0.0;
+    rcm = Vec3();
+    for (int j = 0; j < N; j++) {
+        int i = atom[j];
+        mass += M[i];
+        rcm += R[i]*M[i];
+    }
+    rcm /= mass;
+
+    // Compute center-of-mass displacements and upper-triangular inertia tensor
+    vector<Vec3> delta(N);
+    double inertia[3][3] = {0.0};
+    for (int j = 0; j < N; j++) {
+        int i = atom[j];
+        Vec3 disp = R[i] - rcm;
+        delta[j] = disp;
+        inertia[0][0] += M[i]*(disp[1]*disp[1] + disp[2]*disp[2]);
+        inertia[1][1] += M[i]*(disp[0]*disp[0] + disp[2]*disp[2]);
+        inertia[2][2] += M[i]*(disp[0]*disp[0] + disp[1]*disp[1]);
+        inertia[0][1] -= M[i]*disp[0]*disp[1];
+        inertia[0][2] -= M[i]*disp[0]*disp[2];
+        inertia[1][2] -= M[i]*disp[1]*disp[2];
+    }
+
+    // Compute rotation matrix and moments of inertia
+    double A[3][3], I[3];
+    dsyevv3(inertia, A, I);
+    MoI = Vec3(I[0], I[1], I[2]);
+    
+    // TODO: Compute the quaternions from the rotation matrices:
+    // TODO: Compute the body-fixed atom positions
 }
 
 /*
- * Creates a clean list of rigid body indices. The rule is: if bodyIndices[i] <= 0 or
+ * Update linear and angular velocity based on individual atomic velocities. If necessary,
+ * also update these atomic velocities so as to eliminate central components.
+ */
+
+void RigidBody::updateVelocities(vector<Vec3>& V, vector<double>& M) {
+    vcm = Vec3();
+    for (int j = 0; j < N; j++) {
+        int i = atom[j];
+        vcm += V[i]*M[i];
+    }
+    vcm /= mass;
+
+    // TODO: Update angular velocities
+    // TODO: Eliminate central components
+}
+
+/*
+ * Create a clean list of rigid body indices. The rule is: if bodyIndices[i] <= 0 or
  * bodyIndices[i] is unique, then index[i] = 0. Otherwise, 1 <= index[i] <= number of
  * distinct positive entries which are non-unique.
  */
@@ -61,18 +113,20 @@ vector<int> cleanBodyIndices(const vector<int>& bodyIndices) {
 }
 
 /*
- * Creates a data structure for the system of rigid bodies and free atoms
+ * Create a data structure for the system of rigid bodies and free atoms
  */
-RigidBodySystem::RigidBodySystem(const System* system, const vector<int>& bodyIndices) {
 
+RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bodyIndices) {
+    context = &contextRef;
     bodyIndex = cleanBodyIndices(bodyIndices);
 
     numBodies = 0;
     for (auto index : bodyIndex)
         numBodies = std::max(numBodies, index);
 
+    const System *system = &context->getSystem();
     int numAtoms = system->getNumParticles();
-    int numActualAtoms = numAtoms;
+    numActualAtoms = numAtoms;
     for (int i = 0; i < numAtoms; i++)
         if (system->isVirtualSite(i))
             numActualAtoms--;
@@ -88,17 +142,16 @@ RigidBodySystem::RigidBodySystem(const System* system, const vector<int>& bodyIn
             else
                 body[ibody-1].N++;
         }
+    numBodyAtoms = numActualAtoms - numFree;
+    bodyFixedPositions.resize(numBodyAtoms);
 
-    int loc = numFree;
+    int loc = 0;
     for (auto& b : body) {
         b.loc = loc;
-        b.atom = &atomIndex[loc];
+        b.atom = &atomIndex[numFree+loc];
+        b.d = &bodyFixedPositions[loc];
         loc += b.N;
     }
-
-//    cout<<"Number of bodies = "<<numBodies<<"\n"
-//        <<"Number of actual atoms = "<<numActualAtoms<<"\n"
-//        <<"Number of free atoms = "<<numFree<<"\n";
 
     vector<int> iatom(numBodies, 0);
     for (int i = 0; i < numAtoms; i++) {
@@ -107,4 +160,43 @@ RigidBodySystem::RigidBodySystem(const System* system, const vector<int>& bodyIn
             body[ibody-1].atom[iatom[ibody-1]++] = i;
         }
     }
+
+    cout<<"Number of bodies = "<<numBodies<<"\n"
+        <<"Number of actual atoms = "<<numActualAtoms<<"\n"
+        <<"Number of free atoms = "<<numFree<<"\n";
+}
+
+/*
+ * Update the kinematic properties of all rigid bodies
+ */
+
+void RigidBodySystem::update() {
+    const System* system = &context->getSystem();
+    int N = system->getNumParticles();
+    vector<Vec3> positions(N), velocities(N);
+    vector<double> masses(N);
+    context->getPositions(positions);
+    context->getVelocities(velocities);
+    for (int i = 0; i < N; i++)
+      masses[i] = system->getParticleMass(i);
+    for (auto&b : body)
+        b.update(positions, velocities, masses);
+}
+
+
+/*
+ * Update the linear and angular velocities of all rigid bodies
+ */
+
+void RigidBodySystem::updateVelocities() {
+//    const System* system = &context->getSystem();
+//    int N = system->getNumParticles();
+//    vector<Vec3> positions(N), velocities(N);
+//    vector<double> masses(N);
+//    context->getPositions(positions);
+//    context->getVelocities(velocities);
+//    for (int i = 0; i < N; i++)
+//      masses[i] = system->getParticleMass(i);
+//    for (auto&b : body)
+//        b.update(positions, velocities, masses, atomIndex);
 }
