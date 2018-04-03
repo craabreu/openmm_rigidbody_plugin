@@ -16,10 +16,12 @@
 // License along with this library; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 // ----------------------------------------------------------------------------
-#ifndef __DSYEVV3_H
-#define __DSYEVV3_H
+#ifndef __DIAGONALIZATION_H
+#define __DIAGONALIZATION_H
 
-void dsyevc3(double A[3][3], double w[3]);
-void dsyevv3(double A[3][3], double Q[3][3], double w[3]);
+int dsyevc3(double A[3][3], double w[3]);
+int dsyevh3(double A[3][3], double Q[3][3], double w[3]);
+int dsyevq3(double A[3][3], double Q[3][3], double w[3]);
+inline void dsytrd3(double A[3][3], double Q[3][3], double d[3], double e[2]);
 
 #endif

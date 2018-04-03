@@ -5,9 +5,10 @@
 #include "RigidBodySystem.h"
 #include "internal/Vec4.h"
 #include "openmm/Vec3.h"
-#include "openmm/internal/ContextImpl.h"
 #include "openmm/System.h"
-#include "internal/dsyevv3.h"
+#include "openmm/OpenMMException.h"
+#include "openmm/internal/ContextImpl.h"
+#include "internal/diagonalization.h"
 #include <vector>
 
 #include <iostream> // TEMPORARY
@@ -17,6 +18,7 @@ using namespace OpenMM;
 using std::vector;
 
 void RigidBody::update(vector<Vec3>& R, vector<Vec3>& V, vector<double>& M) {
+
     // Compute total mass and center-of-mass position
     mass = 0.0;
     rcm = Vec3();
@@ -44,9 +46,12 @@ void RigidBody::update(vector<Vec3>& R, vector<Vec3>& V, vector<double>& M) {
 
     // Compute rotation matrix and moments of inertia
     double A[3][3], I[3];
-    dsyevv3(inertia, A, I);
+    int result = dsyevh3(inertia, A, I);
+    if (result != 0)
+        throw OpenMMException("Diagonalization of rigid body inertia tensor failed");
     MoI = Vec3(I[0], I[1], I[2]);
-    
+
+    cout<<MoI<<"\n";
     // TODO: Compute the quaternions from the rotation matrices:
     // TODO: Compute the body-fixed atom positions
 }
