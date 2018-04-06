@@ -19,9 +19,12 @@
 #ifndef __DIAGONALIZATION_H
 #define __DIAGONALIZATION_H
 
-int dsyevc3(double A[3][3], double w[3]);
-int dsyevh3(double A[3][3], double Q[3][3], double w[3]);
-int dsyevq3(double A[3][3], double Q[3][3], double w[3]);
-inline void dsytrd3(double A[3][3], double Q[3][3], double d[3], double e[2]);
+#include "internal/MatVec.h"
+#include "openmm/Vec3.h"
+
+using namespace OpenMM;
+using namespace RigidBodyPlugin;
+
+void eigendecomposition(const Mat3& A, Mat3& Q, Vec3& w);
 
 #endif

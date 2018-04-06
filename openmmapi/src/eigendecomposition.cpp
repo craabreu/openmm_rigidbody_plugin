@@ -16,11 +16,15 @@
 // License along with this library; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 // ----------------------------------------------------------------------------
+#include "internal/eigendecomposition.h"
+#include "openmm/OpenMMException.h"
 #include <stdio.h>
 #include <math.h>
 #include <complex.h>
 #include <float.h>
-#include "internal/diagonalization.h"
+
+using namespace RigidBodyPlugin;
+using namespace OpenMM;
 
 // Constants
 #define M_SQRT3    1.73205080756887729352744634151   // sqrt(3)
@@ -29,8 +33,9 @@
 #define SQR(x)      ((x)*(x))                        // x^2 
 
 // ----------------------------------------------------------------------------
-void swap(double& a, double& b) {
+void swap(double& a, double& b)
 // ----------------------------------------------------------------------------
+{
     double c = a;
     a = b;
     b = c;
@@ -98,109 +103,82 @@ int dsyevc3(double A[3][3], double w[3])
 }
 
 // ----------------------------------------------------------------------------
-int dsyevh3(double A[3][3], double Q[3][3], double w[3])
+inline void dsytrd3(double A[3][3], double Q[3][3], double d[3], double e[2])
 // ----------------------------------------------------------------------------
-// Calculates the eigenvalues and normalized eigenvectors of a symmetric 3x3
-// matrix A using Cardano's method for the eigenvalues and an analytical
-// method based on vector cross products for the eigenvectors. However,
-// if conditions are such that a large error in the results is to be
-// expected, the routine falls back to using the slower, but more
-// accurate QL algorithm. Only the diagonal and upper triangular parts of A need
-// to contain meaningful values. Access to A is read-only.
-// ----------------------------------------------------------------------------
-// Parameters:
-//   A: The symmetric input matrix
-//   Q: Storage buffer for eigenvectors
-//   w: Storage buffer for eigenvalues
-// ----------------------------------------------------------------------------
-// Return value:
-//   0: Success
-//  -1: Error
-// ----------------------------------------------------------------------------
-// Dependencies:
-//   dsyevc3(), dsytrd3(), dsyevq3()
-// ----------------------------------------------------------------------------
-// Version history:
-//   v1.1: Simplified fallback condition --> speed-up
-//   v1.0: First released version
-// ----------------------------------------------------------------------------
+// Reduces a symmetric 3x3 matrix to tridiagonal form by applying
+// (unitary) Householder transformations:
+//            [ d[0]  e[0]       ]
+//    A = Q . [ e[0]  d[1]  e[1] ] . Q^T
+//            [       e[1]  d[2] ]
+// The function accesses only the diagonal and upper triangular parts of
+// A. The access is read-only.
+// ---------------------------------------------------------------------------
 {
+  const int n = 3;
+  double u[n], q[n];
+  double omega, f;
+  double K, h, g;
+  
+  // Initialize Q to the identitity matrix
 #ifndef EVALS_ONLY
-  double norm;          // Squared norm or inverse norm of current eigenvector
-//  double n0, n1;        // Norm of first and second columns of A
-  double error;         // Estimated maximum roundoff error
-  double t, u;          // Intermediate storage
-  int j;                // Loop counter
+  for (int i=0; i < n; i++)
+  {
+    Q[i][i] = 1.0;
+    for (int j=0; j < i; j++)
+      Q[i][j] = Q[j][i] = 0.0;
+  }
 #endif
 
-  // Calculate eigenvalues
-  dsyevc3(A, w);
+  // Bring first row and column to the desired form 
+  h = SQR(A[0][1]) + SQR(A[0][2]);
+  if (A[0][1] > 0)
+    g = -sqrt(h);
+  else
+    g = sqrt(h);
+  e[0] = g;
+  f    = g * A[0][1];
+  u[1] = A[0][1] - g;
+  u[2] = A[0][2];
+  
+  omega = h - f;
+  if (omega > 0.0)
+  {
+    omega = 1.0 / omega;
+    K     = 0.0;
+    for (int i=1; i < n; i++)
+    {
+      f    = A[1][i] * u[1] + A[i][2] * u[2];
+      q[i] = omega * f;                  // p
+      K   += u[i] * f;                   // u* A u
+    }
+    K *= 0.5 * SQR(omega);
 
+    for (int i=1; i < n; i++)
+      q[i] = q[i] - K * u[i];
+    
+    d[0] = A[0][0];
+    d[1] = A[1][1] - 2.0*q[1]*u[1];
+    d[2] = A[2][2] - 2.0*q[2]*u[2];
+    
+    // Store inverse Householder transformation in Q
 #ifndef EVALS_ONLY
-//  n0 = SQR(A[0][0]) + SQR(A[0][1]) + SQR(A[0][2]);
-//  n1 = SQR(A[0][1]) + SQR(A[1][1]) + SQR(A[1][2]);
-  
-  t = fabs(w[0]);
-  if ((u=fabs(w[1])) > t)
-    t = u;
-  if ((u=fabs(w[2])) > t)
-    t = u;
-  if (t < 1.0)
-    u = t;
-  else
-    u = SQR(t);
-  error = 256.0 * DBL_EPSILON * SQR(u);
-//  error = 256.0 * DBL_EPSILON * (n0 + u) * (n1 + u);
-
-  Q[0][1] = A[0][1]*A[1][2] - A[0][2]*A[1][1];
-  Q[1][1] = A[0][2]*A[0][1] - A[1][2]*A[0][0];
-  Q[2][1] = SQR(A[0][1]);
-
-  // Calculate first eigenvector by the formula
-  //   v[0] = (A - w[0]).e1 x (A - w[0]).e2
-  Q[0][0] = Q[0][1] + A[0][2]*w[0];
-  Q[1][0] = Q[1][1] + A[1][2]*w[0];
-  Q[2][0] = (A[0][0] - w[0]) * (A[1][1] - w[0]) - Q[2][1];
-  norm    = SQR(Q[0][0]) + SQR(Q[1][0]) + SQR(Q[2][0]);
-
-  // If vectors are nearly linearly dependent, or if there might have
-  // been large cancellations in the calculation of A[i][i] - w[0], fall
-  // back to QL algorithm
-  // Note that this simultaneously ensures that multiple eigenvalues do
-  // not cause problems: If w[0] = w[1], then A - w[0] * I has rank 1,
-  // i.e. all columns of A - w[0] * I are linearly dependent.
-  if (norm <= error)
-    return dsyevq3(A, Q, w);
-  else                      // This is the standard branch
-  {
-    norm = sqrt(1.0 / norm);
-    for (j=0; j < 3; j++)
-      Q[j][0] = Q[j][0] * norm;
-  }
-  
-  // Calculate second eigenvector by the formula
-  //   v[1] = (A - w[1]).e1 x (A - w[1]).e2
-  Q[0][1]  = Q[0][1] + A[0][2]*w[1];
-  Q[1][1]  = Q[1][1] + A[1][2]*w[1];
-  Q[2][1]  = (A[0][0] - w[1]) * (A[1][1] - w[1]) - Q[2][1];
-  norm     = SQR(Q[0][1]) + SQR(Q[1][1]) + SQR(Q[2][1]);
-  if (norm <= error)
-    return dsyevq3(A, Q, w);
-  else
-  {
-    norm = sqrt(1.0 / norm);
-    for (j=0; j < 3; j++)
-      Q[j][1] = Q[j][1] * norm;
-  }
-  
-  // Calculate third eigenvector according to
-  //   v[2] = v[0] x v[1]
-  Q[0][2] = Q[1][0]*Q[2][1] - Q[2][0]*Q[1][1];
-  Q[1][2] = Q[2][0]*Q[0][1] - Q[0][0]*Q[2][1];
-  Q[2][2] = Q[0][0]*Q[1][1] - Q[1][0]*Q[0][1];
+    for (int j=1; j < n; j++)
+    {
+      f = omega * u[j];
+      for (int i=1; i < n; i++)
+        Q[i][j] = Q[i][j] - f*u[i];
+    }
 #endif
 
-  return 0;
+    // Calculate updated A[1][2] and store it in e[1]
+    e[1] = A[1][2] - q[1]*u[2] - u[1]*q[2];
+  }
+  else
+  {
+    for (int i=0; i < n; i++)
+      d[i] = A[i][i];
+    e[1] = A[1][2];
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -312,80 +290,125 @@ int dsyevq3(double A[3][3], double Q[3][3], double w[3])
 }
 
 // ----------------------------------------------------------------------------
-inline void dsytrd3(double A[3][3], double Q[3][3], double d[3], double e[2])
+int dsyevh3(double A[3][3], double Q[3][3], double w[3])
 // ----------------------------------------------------------------------------
-// Reduces a symmetric 3x3 matrix to tridiagonal form by applying
-// (unitary) Householder transformations:
-//            [ d[0]  e[0]       ]
-//    A = Q . [ e[0]  d[1]  e[1] ] . Q^T
-//            [       e[1]  d[2] ]
-// The function accesses only the diagonal and upper triangular parts of
-// A. The access is read-only.
-// ---------------------------------------------------------------------------
+// Calculates the eigenvalues and normalized eigenvectors of a symmetric 3x3
+// matrix A using Cardano's method for the eigenvalues and an analytical
+// method based on vector cross products for the eigenvectors. However,
+// if conditions are such that a large error in the results is to be
+// expected, the routine falls back to using the slower, but more
+// accurate QL algorithm. Only the diagonal and upper triangular parts of A need
+// to contain meaningful values. Access to A is read-only.
+// ----------------------------------------------------------------------------
+// Parameters:
+//   A: The symmetric input matrix
+//   Q: Storage buffer for eigenvectors
+//   w: Storage buffer for eigenvalues
+// ----------------------------------------------------------------------------
+// Return value:
+//   0: Success
+//  -1: Error
+// ----------------------------------------------------------------------------
+// Dependencies:
+//   dsyevc3(), dsytrd3(), dsyevq3()
+// ----------------------------------------------------------------------------
+// Version history:
+//   v1.1: Simplified fallback condition --> speed-up
+//   v1.0: First released version
+// ----------------------------------------------------------------------------
 {
-  const int n = 3;
-  double u[n], q[n];
-  double omega, f;
-  double K, h, g;
-  
-  // Initialize Q to the identitity matrix
 #ifndef EVALS_ONLY
-  for (int i=0; i < n; i++)
-  {
-    Q[i][i] = 1.0;
-    for (int j=0; j < i; j++)
-      Q[i][j] = Q[j][i] = 0.0;
-  }
+  double norm;          // Squared norm or inverse norm of current eigenvector
+//  double n0, n1;        // Norm of first and second columns of A
+  double error;         // Estimated maximum roundoff error
+  double t, u;          // Intermediate storage
+  int j;                // Loop counter
 #endif
 
-  // Bring first row and column to the desired form 
-  h = SQR(A[0][1]) + SQR(A[0][2]);
-  if (A[0][1] > 0)
-    g = -sqrt(h);
-  else
-    g = sqrt(h);
-  e[0] = g;
-  f    = g * A[0][1];
-  u[1] = A[0][1] - g;
-  u[2] = A[0][2];
-  
-  omega = h - f;
-  if (omega > 0.0)
-  {
-    omega = 1.0 / omega;
-    K     = 0.0;
-    for (int i=1; i < n; i++)
-    {
-      f    = A[1][i] * u[1] + A[i][2] * u[2];
-      q[i] = omega * f;                  // p
-      K   += u[i] * f;                   // u* A u
-    }
-    K *= 0.5 * SQR(omega);
+  // Calculate eigenvalues
+  dsyevc3(A, w);
 
-    for (int i=1; i < n; i++)
-      q[i] = q[i] - K * u[i];
-    
-    d[0] = A[0][0];
-    d[1] = A[1][1] - 2.0*q[1]*u[1];
-    d[2] = A[2][2] - 2.0*q[2]*u[2];
-    
-    // Store inverse Householder transformation in Q
 #ifndef EVALS_ONLY
-    for (int j=1; j < n; j++)
-    {
-      f = omega * u[j];
-      for (int i=1; i < n; i++)
-        Q[i][j] = Q[i][j] - f*u[i];
-    }
+//  n0 = SQR(A[0][0]) + SQR(A[0][1]) + SQR(A[0][2]);
+//  n1 = SQR(A[0][1]) + SQR(A[1][1]) + SQR(A[1][2]);
+  
+  t = fabs(w[0]);
+  if ((u=fabs(w[1])) > t)
+    t = u;
+  if ((u=fabs(w[2])) > t)
+    t = u;
+  if (t < 1.0)
+    u = t;
+  else
+    u = SQR(t);
+  error = 256.0 * DBL_EPSILON * SQR(u);
+//  error = 256.0 * DBL_EPSILON * (n0 + u) * (n1 + u);
+
+  Q[0][1] = A[0][1]*A[1][2] - A[0][2]*A[1][1];
+  Q[1][1] = A[0][2]*A[0][1] - A[1][2]*A[0][0];
+  Q[2][1] = SQR(A[0][1]);
+
+  // Calculate first eigenvector by the formula
+  //   v[0] = (A - w[0]).e1 x (A - w[0]).e2
+  Q[0][0] = Q[0][1] + A[0][2]*w[0];
+  Q[1][0] = Q[1][1] + A[1][2]*w[0];
+  Q[2][0] = (A[0][0] - w[0]) * (A[1][1] - w[0]) - Q[2][1];
+  norm    = SQR(Q[0][0]) + SQR(Q[1][0]) + SQR(Q[2][0]);
+
+  // If vectors are nearly linearly dependent, or if there might have
+  // been large cancellations in the calculation of A[i][i] - w[0], fall
+  // back to QL algorithm
+  // Note that this simultaneously ensures that multiple eigenvalues do
+  // not cause problems: If w[0] = w[1], then A - w[0] * I has rank 1,
+  // i.e. all columns of A - w[0] * I are linearly dependent.
+  if (norm <= error)
+    return dsyevq3(A, Q, w);
+  else                      // This is the standard branch
+  {
+    norm = sqrt(1.0 / norm);
+    for (j=0; j < 3; j++)
+      Q[j][0] = Q[j][0] * norm;
+  }
+  
+  // Calculate second eigenvector by the formula
+  //   v[1] = (A - w[1]).e1 x (A - w[1]).e2
+  Q[0][1]  = Q[0][1] + A[0][2]*w[1];
+  Q[1][1]  = Q[1][1] + A[1][2]*w[1];
+  Q[2][1]  = (A[0][0] - w[1]) * (A[1][1] - w[1]) - Q[2][1];
+  norm     = SQR(Q[0][1]) + SQR(Q[1][1]) + SQR(Q[2][1]);
+  if (norm <= error)
+    return dsyevq3(A, Q, w);
+  else
+  {
+    norm = sqrt(1.0 / norm);
+    for (j=0; j < 3; j++)
+      Q[j][1] = Q[j][1] * norm;
+  }
+  
+  // Calculate third eigenvector according to
+  //   v[2] = v[0] x v[1]
+  Q[0][2] = Q[1][0]*Q[2][1] - Q[2][0]*Q[1][1];
+  Q[1][2] = Q[2][0]*Q[0][1] - Q[0][0]*Q[2][1];
+  Q[2][2] = Q[0][0]*Q[1][1] - Q[1][0]*Q[0][1];
 #endif
 
-    // Calculate updated A[1][2] and store it in e[1]
-    e[1] = A[1][2] - q[1]*u[2] - u[1]*q[2];
-  }
-  else
-  {
-    for (int i=0; i < n; i++)
-      d[i] = A[i][i];
-    e[1] = A[1][2];
-  }
+  return 0;
+}
+
+// ----------------------------------------------------------------------------
+void eigendecomposition(const Mat3& A, Mat3& Q, Vec3& w)
+// ----------------------------------------------------------------------------
+{
+    double B[3][3], R[3][3], x[3];
+    for (int i = 0; i < 3; i++)
+        for (int j = i; j < 3; j++)
+            B[i][j] = A[i][j];
+    int result = dsyevh3(B, R, x);
+    if (result != 0)
+        throw OpenMMException("Eigendecomposition of symmetric matrix failed");
+    for (int i = 0; i < 3; i++) {
+        for (int j = i; j < 3; j++)
+            Q[i][j] = R[i][j];
+        w[i] = x[i];
+    }
 }

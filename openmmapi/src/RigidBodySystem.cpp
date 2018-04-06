@@ -3,13 +3,14 @@
  * -------------------------------------------------------------------------- */
 
 #include "RigidBodySystem.h"
-#include "internal/Vec4.h"
+#include "internal/MatVec.h"
 #include "openmm/Vec3.h"
 #include "openmm/System.h"
 #include "openmm/OpenMMException.h"
 #include "openmm/internal/ContextImpl.h"
-#include "internal/diagonalization.h"
+#include "internal/eigendecomposition.h"
 #include <vector>
+#include <math.h>
 
 #include <iostream> // TEMPORARY
 
@@ -17,9 +18,79 @@ using namespace RigidBodyPlugin;
 using namespace OpenMM;
 using std::vector;
 
+/*--------------------------------------------------------------------------------------------------
+  Compute quaternion components from a given rotation matrix (Ref: S. W. Shepperd, Journal of
+  Guidance and Control 1, p. 223, 1978).
+--------------------------------------------------------------------------------------------------*/
+
+Vec4 quaternion( const Mat3& A ) {
+    double a11 = A[0][0];
+    double a22 = A[1][1];
+    double a33 = A[2][2];
+    Vec4 Q2(1.0+a11+a22+a33, 1.0+a11-a22-a33, 1.0-a11+a22-a33, 1.0-a11-a22+a33);
+    int imax = Q2.maxloc();
+    double Q2max = Q2[imax];
+    double factor = 0.5/sqrt(Q2max);
+    if (imax == 0)
+        return Vec4(Q2max, A[1][2]-A[2][1], A[2][0]-A[0][2], A[0][1]-A[1][0])*factor;
+    else if (imax == 1)
+        return Vec4(A[1][2]-A[2][1], Q2max, A[0][1]+A[1][0], A[0][2]+A[2][0])*factor;
+    else if (imax == 2)
+        return Vec4(A[2][0]-A[0][2], A[0][1]+A[1][0], Q2max, A[1][2]+A[2][1])*factor;
+    else
+        return Vec4(A[0][1]-A[1][0], A[0][2]+A[2][0], A[1][2]+A[2][1], Q2max)*factor;
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Premultiply matrix B(q) by a vector x
+--------------------------------------------------------------------------------------------------*/
+
+Vec4 multiplyB(Vec4 q, Vec3 x) {
+    return Vec4(-q[1]*x[0] - q[2]*x[1] - q[3]*x[2],
+                 q[0]*x[0] - q[3]*x[1] + q[2]*x[2],
+                 q[3]*x[0] + q[0]*x[1] - q[1]*x[2],
+                -q[2]*x[0] + q[1]*x[1] + q[0]*x[2]);
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Premultiply matrix C(q) by a vector x
+--------------------------------------------------------------------------------------------------*/
+
+Vec4 multiplyC(Vec4 q, Vec3 x) {
+    return Vec4(-q[1]*x[0] - q[2]*x[1] - q[3]*x[2],
+                 q[0]*x[0] + q[3]*x[1] - q[2]*x[2],
+                -q[3]*x[0] + q[0]*x[1] + q[1]*x[2],
+                 q[2]*x[0] - q[1]*x[1] + q[0]*x[2]);
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Premultiply matrix B^t(q) by a quaternion y
+--------------------------------------------------------------------------------------------------*/
+
+Vec3 multiplyBt(Vec4 q, Vec4 y) {
+    return Vec3(-q[1]*y[0] + q[0]*y[1] + q[3]*y[2] - q[2]*y[3],
+                -q[2]*y[0] - q[3]*y[1] + q[0]*y[2] + q[1]*y[3],
+                -q[3]*y[0] + q[2]*y[1] - q[1]*y[2] + q[0]*y[3]);
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Premultiply matrix C^t(q) by a quaternion y
+--------------------------------------------------------------------------------------------------*/
+
+Vec3 multiplyCt(Vec4 q, Vec4 y) {
+    return Vec3(-q[1]*y[0] + q[0]*y[1] - q[3]*y[2] + q[2]*y[3],
+                -q[2]*y[0] + q[3]*y[1] + q[0]*y[2] - q[1]*y[3],
+                -q[3]*y[0] - q[2]*y[1] + q[1]*y[2] + q[0]*y[3]);
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Update the geometric and kinematic properties of a rigid body based on the positions and
+  velocities of individual atoms.
+--------------------------------------------------------------------------------------------------*/
+
 void RigidBody::update(vector<Vec3>& R, vector<Vec3>& V, vector<double>& M) {
 
-    // Compute total mass and center-of-mass position
+    // Total mass and center-of-mass position
     mass = 0.0;
     rcm = Vec3();
     for (int j = 0; j < N; j++) {
@@ -29,9 +100,9 @@ void RigidBody::update(vector<Vec3>& R, vector<Vec3>& V, vector<double>& M) {
     }
     rcm /= mass;
 
-    // Compute center-of-mass displacements and upper-triangular inertia tensor
+    // Center-of-mass displacements and upper-triangular inertia tensor
     vector<Vec3> delta(N);
-    double inertia[3][3] = {0.0};
+    Mat3 inertia;
     for (int j = 0; j < N; j++) {
         int i = atom[j];
         Vec3 disp = R[i] - rcm;
@@ -44,40 +115,74 @@ void RigidBody::update(vector<Vec3>& R, vector<Vec3>& V, vector<double>& M) {
         inertia[1][2] -= M[i]*disp[1]*disp[2];
     }
 
-    // Compute rotation matrix and moments of inertia
-    double A[3][3], I[3];
-    int result = dsyevh3(inertia, A, I);
-    if (result != 0)
-        throw OpenMMException("Diagonalization of rigid body inertia tensor failed");
-    MoI = Vec3(I[0], I[1], I[2]);
+    // Principal moments of inertia, rotation matrix, and orientational quaternion
+    Mat3 A;
+    eigendecomposition(inertia, A, MoI);
+    A = A.t();
+    q = quaternion(A);
 
-    cout<<MoI<<"\n";
-    // TODO: Compute the quaternions from the rotation matrices:
-    // TODO: Compute the body-fixed atom positions
+    // Atom positions in the body-fixed frame of reference
+    for (int i = 0; i < N; i++)
+        d[i] = A*delta[i];
 }
 
-/*
- * Update linear and angular velocity based on individual atomic velocities. If necessary,
- * also update these atomic velocities so as to eliminate central components.
- */
+/*--------------------------------------------------------------------------------------------------
+  Update linear and angular velocity based on individual atomic velocities. If necessary, also
+  update these atomic velocities so as to eliminate central components.
+--------------------------------------------------------------------------------------------------*/
 
-void RigidBody::updateVelocities(vector<Vec3>& V, vector<double>& M) {
+void RigidBody::updateVelocities(vector<Vec3>& R, vector<Vec3>& V, vector<double>& M) {
+
+    cout<<"velocities\n";
+    // Compute total kinetic energy and center-of-mass velocity
+    double K = 0.0;
     vcm = Vec3();
     for (int j = 0; j < N; j++) {
         int i = atom[j];
-        vcm += V[i]*M[i];
+        double m = M[i];
+        Vec3 p = V[i]*m;
+        K += V[i].dot(V[i])*(0.5*m);
+        vcm += p;
     }
     vcm /= mass;
 
-    // TODO: Update angular velocities
-    // TODO: Eliminate central components
+    // Compute angular velocity via least square regression of V_i = vcm + omega x (R_i - rcm)
+    /*                      |S(d_1)|                              |vcm-V_1|
+       -|S(d_1) ... S(d_N)| | ...  | omega = -|S(d_1) ... S(d_N)| |  ...  |
+                            |S(d_N)|                              |vcm-V_N|
+        -sum_i{S^2(d_i)} omega = sum_i{S(d_i)(V_i-vcm) = sum_i{d_i x (V_i-vcm)}
+        A omega = sum_i{d_i x (V_i-vcm)}, where A = -sum_i{S^2(d_i)} is symmetric */
+    Mat3 A;
+    Vec3 b;
+    for (int j = 0; j < N; j++) {
+        int i = atom[j];
+        Vec3 d = R[i] - rcm;
+        for (int k = 0; k < 3; k++) {
+            A[k][k] += d.dot(d);
+            for (int l = k; l < 3; l++)
+                A[k][l] -= d[k]*d[l];
+        }
+        b += d.cross(V[i] - vcm);
+        Mat3 Q;
+        Vec3 lambda;
+        eigendecomposition(A, Q, lambda);
+//        omega
+//        omega = Q.t()*b/lambda;
+//        double Q[3][3], lambda[3];
+//        int result = dsyevh3(A, Q, lambda); // eigendecomposition
+//        omega = matVec(Q, vecDiv(transMatVec(Q, b), lambda));
+    }
+    // TODO: Solve the symmetric linear system A*omega = b, noting that only the upper triangular
+    // part of A has been computed above
+
+
 }
 
-/*
- * Create a clean list of rigid body indices. The rule is: if bodyIndices[i] <= 0 or
- * bodyIndices[i] is unique, then index[i] = 0. Otherwise, 1 <= index[i] <= number of
- * distinct positive entries which are non-unique.
- */
+/*--------------------------------------------------------------------------------------------------
+  Create a clean list of rigid body indices. The rule is: if bodyIndices[i] <= 0 or is unique, then
+  index[i] = 0. Otherwise, 1 <= index[i] <= number of distinct positive entries which are
+  non-unique.
+--------------------------------------------------------------------------------------------------*/
 
 vector<int> cleanBodyIndices(const vector<int>& bodyIndices) {
     int size = bodyIndices.size();
@@ -117,9 +222,9 @@ vector<int> cleanBodyIndices(const vector<int>& bodyIndices) {
     return index;
 }
 
-/*
- * Create a data structure for the system of rigid bodies and free atoms
- */
+/*--------------------------------------------------------------------------------------------------
+  Create a data structure for the system of rigid bodies and free atoms.
+--------------------------------------------------------------------------------------------------*/
 
 RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bodyIndices) {
     context = &contextRef;
@@ -171,9 +276,9 @@ RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bod
         <<"Number of free atoms = "<<numFree<<"\n";
 }
 
-/*
- * Update the kinematic properties of all rigid bodies
- */
+/*--------------------------------------------------------------------------------------------------
+  Update the kinematic properties of all rigid bodies.
+--------------------------------------------------------------------------------------------------*/
 
 void RigidBodySystem::update() {
     const System* system = &context->getSystem();
@@ -184,14 +289,16 @@ void RigidBodySystem::update() {
     context->getVelocities(velocities);
     for (int i = 0; i < N; i++)
       masses[i] = system->getParticleMass(i);
-    for (auto&b : body)
+    for (auto&b : body) {
         b.update(positions, velocities, masses);
+        b.updateVelocities(positions, velocities, masses);
+    }
 }
 
 
-/*
- * Update the linear and angular velocities of all rigid bodies
- */
+/*--------------------------------------------------------------------------------------------------
+  Update the linear and angular velocities of all rigid bodies.
+--------------------------------------------------------------------------------------------------*/
 
 void RigidBodySystem::updateVelocities() {
 //    const System* system = &context->getSystem();
