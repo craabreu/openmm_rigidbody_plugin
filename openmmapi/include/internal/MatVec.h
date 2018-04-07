@@ -1,5 +1,5 @@
-#ifndef OPENMM_MAT3_H_
-#define OPENMM_MAT3_H_
+#ifndef OPENMM_MATVEC_H_
+#define OPENMM_MATVEC_H_
 
 /* -------------------------------------------------------------------------- *
  *                          OpenMM Rigid Body Plugin                          *
@@ -47,7 +47,7 @@ public:
     Vec3 operator*(const Vec3& rhs) const;
     Mat3 operator*(const Mat3& rhs) const;
     Mat3 operator*(const Diag3& rhs) const;
-private:
+protected:
     vector<Vec3> row;
 };
 
@@ -85,31 +85,42 @@ private:
  * This class represents a four component vector.  It is used for storing quaternions.
  */
 
-class Vec4 {
+class Quat {
 public:
-    Vec4();
-    Vec4(double x, double y, double z, double w);
+    Quat();
+    Quat(double x, double y, double z, double w);
+    Quat(const Mat3& A);
+
     double operator[](int index) const;
     double& operator[](int index);
-    bool operator==(const Vec4& rhs) const;
-    bool operator!=(const Vec4& rhs) const;
-    Vec4 operator+() const;
-    Vec4 operator+(const Vec4& rhs) const;
-    Vec4& operator+=(const Vec4& rhs);
-    Vec4 operator-() const;
-    Vec4 operator-(const Vec4& rhs) const;
-    Vec4& operator-=(const Vec4& rhs);
-    Vec4 operator*(double rhs) const;
-    Vec4& operator*=(double rhs);
-    Vec4 operator/(double rhs) const;
-    Vec4& operator/=(double rhs);
-    double dot(const Vec4& rhs) const;
-    int maxloc();
+    bool operator==(const Quat& rhs) const;
+    bool operator!=(const Quat& rhs) const;
+    Quat operator+() const;
+    Quat operator+(const Quat& rhs) const;
+    Quat& operator+=(const Quat& rhs);
+    Quat operator-() const;
+    Quat operator-(const Quat& rhs) const;
+    Quat& operator-=(const Quat& rhs);
+    Quat operator*(double rhs) const;
+    Quat& operator*=(double rhs);
+    Quat operator/(double rhs) const;
+    Quat& operator/=(double rhs);
+    double dot(const Quat& rhs) const;
+    int maxloc() const;
+    Quat B(Vec3 x) const;
+    Quat C(Vec3 x) const;
+    Vec3 Bt(Quat y) const;
+    Vec3 Ct(Quat y) const;
+    Vec3 A(Vec3 x) const;
+    Vec3 At(Vec3 x) const;
 private:
     double data[4];
 };
 
-Mat3 RankOne(Vec3 x, Vec3 y);
+class Projection : public Mat3 {
+public:
+    Projection(Vec3 x);
+};
 
 template <class CHAR, class TRAITS>
 std::basic_ostream<CHAR,TRAITS>& operator<<(std::basic_ostream<CHAR,TRAITS>& o, const Mat3& M) {
@@ -123,6 +134,12 @@ std::basic_ostream<CHAR,TRAITS>& operator<<(std::basic_ostream<CHAR,TRAITS>& o, 
     return o;
 }
 
+template <class CHAR, class TRAITS>
+std::basic_ostream<CHAR,TRAITS>& operator<<(std::basic_ostream<CHAR,TRAITS>& o, const Quat& q) {
+    o<<'['<<q[0]<<", "<<q[1]<<", "<<q[2]<<", "<<q[3]<<']';
+    return o;
+}
+
 } // namespace RigidBodyPlugin
 
-#endif /*OPENMM_Mat3_H_*/
+#endif /*OPENMM_MATVEC_H_*/

@@ -25,6 +25,6 @@
 using namespace OpenMM;
 using namespace RigidBodyPlugin;
 
-void eigendecomposition(const Mat3& A, Mat3& Q, Vec3& w);
+void eigenDecomposition(const Mat3& A, Mat3& Q, Vec3& w);
 
 #endif

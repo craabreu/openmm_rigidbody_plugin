@@ -19,7 +19,7 @@ namespace RigidBodyPlugin {
 class RigidBody {
 public:
     void update(vector<Vec3>& R, vector<Vec3>& V, vector<double>& M);
-    void updateVelocities(vector<Vec3>& R, vector<Vec3>& V, vector<double>& M);
+    void updateVelocities(vector<Vec3>& V, vector<double>& M);
 
     int    N = 0;   // number of atoms
     int    loc;     // location of first atom index
@@ -31,8 +31,11 @@ private:
     Vec3   MoI;     // Principal moments of inertia
     Vec3   rcm;     // Center-of-mass position
     Vec3   vcm;     // Center-of-mass velocity
-    Vec4   q;       // Unit orientation quaternion
-    Vec3   omega;   // angular velocity
+    Quat   q;       // Unit orientation quaternion
+    Quat   pi;      // Quaternion-conjugated momentum
+
+    double invMass;
+    Vec3   invMoI;
 };
 
 

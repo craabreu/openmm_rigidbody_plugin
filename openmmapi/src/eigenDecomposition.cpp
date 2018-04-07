@@ -16,7 +16,7 @@
 // License along with this library; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 // ----------------------------------------------------------------------------
-#include "internal/eigendecomposition.h"
+#include "internal/eigenDecomposition.h"
 #include "openmm/OpenMMException.h"
 #include <stdio.h>
 #include <math.h>
@@ -59,7 +59,7 @@ int dsyevc3(double A[3][3], double w[3])
 // ----------------------------------------------------------------------------
 {
   double m, c1, c0;
-  
+
   // Determine coefficients of characteristic poynomial. We write
   //       | a   d   f  |
   //  A =  | d*  b   e  |
@@ -81,7 +81,7 @@ int dsyevc3(double A[3][3], double w[3])
 
   phi = 27.0 * ( 0.25*SQR(c1)*(p - c1) + c0*(q + 27.0/4.0*c0));
   phi = (1.0/3.0) * atan2(sqrt(fabs(phi)), q);
-  
+
   c = sqrt_p*cos(phi);
   s = (1.0/M_SQRT3)*sqrt_p*sin(phi);
 
@@ -118,7 +118,7 @@ inline void dsytrd3(double A[3][3], double Q[3][3], double d[3], double e[2])
   double u[n], q[n];
   double omega, f;
   double K, h, g;
-  
+
   // Initialize Q to the identitity matrix
 #ifndef EVALS_ONLY
   for (int i=0; i < n; i++)
@@ -139,7 +139,7 @@ inline void dsytrd3(double A[3][3], double Q[3][3], double d[3], double e[2])
   f    = g * A[0][1];
   u[1] = A[0][1] - g;
   u[2] = A[0][2];
-  
+
   omega = h - f;
   if (omega > 0.0)
   {
@@ -155,11 +155,11 @@ inline void dsytrd3(double A[3][3], double Q[3][3], double d[3], double e[2])
 
     for (int i=1; i < n; i++)
       q[i] = q[i] - K * u[i];
-    
+
     d[0] = A[0][0];
     d[1] = A[1][1] - 2.0*q[1]*u[1];
     d[2] = A[2][2] - 2.0*q[2]*u[2];
-    
+
     // Store inverse Householder transformation in Q
 #ifndef EVALS_ONLY
     for (int j=1; j < n; j++)
@@ -396,7 +396,7 @@ int dsyevh3(double A[3][3], double Q[3][3], double w[3])
 }
 
 // ----------------------------------------------------------------------------
-void eigendecomposition(const Mat3& A, Mat3& Q, Vec3& w)
+void eigenDecomposition(const Mat3& A, Mat3& Q, Vec3& w)
 // ----------------------------------------------------------------------------
 {
     double B[3][3], R[3][3], x[3];
@@ -407,7 +407,7 @@ void eigendecomposition(const Mat3& A, Mat3& Q, Vec3& w)
     if (result != 0)
         throw OpenMMException("Eigendecomposition of symmetric matrix failed");
     for (int i = 0; i < 3; i++) {
-        for (int j = i; j < 3; j++)
+        for (int j = 0; j < 3; j++)
             Q[i][j] = R[i][j];
         w[i] = x[i];
     }

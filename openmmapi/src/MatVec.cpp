@@ -3,6 +3,7 @@
  * -------------------------------------------------------------------------- */
 
 #include "internal/MatVec.h"
+#include <math.h>
 
 using namespace RigidBodyPlugin;
 using namespace OpenMM;
@@ -129,7 +130,8 @@ Mat3& Mat3::operator/=(double rhs) {
 
 // Transposition
 Mat3 Mat3::t() const {
-    return Mat3(this->col(0), this->col(1), this->col(2));
+    const Mat3& lhs = *this;
+    return Mat3(lhs.col(0), lhs.col(1), lhs.col(2));
 }
 
 // Product with vector
@@ -141,7 +143,7 @@ Vec3 Mat3::operator*(const Vec3& rhs) const {
 // Product with another full matrix
 Mat3 Mat3::operator*(const Mat3& rhs) const {
     const Mat3& lhs = *this;
-    return Mat3(lhs*rhs.col(0), lhs*rhs.col(1), lhs*rhs*col(2)).t();
+    return Mat3(lhs*(rhs.col(0)), lhs*(rhs.col(1)), lhs*rhs.col(2)).t();
 }
 
 // Product with a diagonal matrix
@@ -287,93 +289,141 @@ Mat3 Diag3::asMat3() const {
 }
 
 /*------------------------------------------------------------------------------
- 4D VECTORS
+ 4D VECTORS (QUATERNIONS)
 ------------------------------------------------------------------------------*/
 
-/**
- * Create a Vec4 whose elements are all 0.
- */
-Vec4::Vec4() {
+// Create a Quat whose elements are all 0.
+Quat::Quat() {
     data[0] = data[1] = data[2] = data[3] = 0.0;
 }
-/**
- * Create a Vec4 with specified x, y, and z components.
- */
-Vec4::Vec4(double x, double y, double z, double w) {
+
+// Create a Quat with specified x, y, and z components.
+Quat::Quat(double x, double y, double z, double w) {
     data[0] = x;
     data[1] = y;
     data[2] = z;
     data[3] = w;
 }
-double Vec4::operator[](int index) const {
-    assert(index >= 0 && index < 4);
-    return data[index];
-}
-double& Vec4::operator[](int index) {
-    assert(index >= 0 && index < 4);
-    return data[index];
-}
-bool Vec4::operator==(const Vec4& rhs) const {
-    return (data[0] == rhs[0] && data[1] == rhs[1] && data[2] == rhs[2] && data[3] == rhs[3]);
-}
-bool Vec4::operator!=(const Vec4& rhs) const {
-    return (data[0] != rhs[0] || data[1] != rhs[1] || data[2] != rhs[2] || data[3] != rhs[3]);
-}
-// Arithmetic operators
-// unary plus
-Vec4 Vec4::operator+() const {
-    return Vec4(*this);
-}
-// plus
-Vec4 Vec4::operator+(const Vec4& rhs) const {
-    const Vec4& lhs = *this;
-    return Vec4(lhs[0] + rhs[0], lhs[1] + rhs[1], lhs[2] + rhs[2], lhs[3] + rhs[3]);
+
+// Create unit quaternion from rotation matrix (Shepperd, 1978)
+Quat::Quat(const Mat3& A) {
+    double a11 = A[0][0];
+    double a22 = A[1][1];
+    double a33 = A[2][2];
+    Quat Q2(1.0+a11+a22+a33, 1.0+a11-a22-a33, 1.0-a11+a22-a33, 1.0-a11-a22+a33);
+    int imax = Q2.maxloc();
+    double Q2max = Q2[imax];
+    double factor = 0.5/sqrt(Q2max);
+    if (imax == 0) {
+        data[1] = (A[1][2]-A[2][1])*factor;
+        data[2] = (A[2][0]-A[0][2])*factor;
+        data[3] = (A[0][1]-A[1][0])*factor;
+    }
+    else if (imax == 1) {
+        data[0] = (A[1][2]-A[2][1])*factor;
+        data[2] = (A[0][1]+A[1][0])*factor;
+        data[3] = (A[0][2]+A[2][0])*factor;
+    }
+    else if (imax == 2) {
+        data[0] = (A[2][0]-A[0][2])*factor;
+        data[1] = (A[0][1]+A[1][0])*factor;
+        data[3] = (A[1][2]+A[2][1])*factor;
+    }
+    else {
+        data[0] = (A[0][1]-A[1][0])*factor;
+        data[1] = (A[0][2]+A[2][0])*factor;
+        data[2] = (A[1][2]+A[2][1])*factor;
+    }
+    data[imax] = Q2max*factor;
 }
 
-Vec4& Vec4::operator+=(const Vec4& rhs) {
+// Extract element
+double Quat::operator[](int index) const {
+    assert(index >= 0 && index < 4);
+    return data[index];
+}
+
+// Assign element
+double& Quat::operator[](int index) {
+    assert(index >= 0 && index < 4);
+    return data[index];
+}
+
+// Equality
+bool Quat::operator==(const Quat& rhs) const {
+    return (data[0] == rhs[0] && data[1] == rhs[1] && data[2] == rhs[2] && data[3] == rhs[3]);
+}
+
+// Inequality
+bool Quat::operator!=(const Quat& rhs) const {
+    return (data[0] != rhs[0] || data[1] != rhs[1] || data[2] != rhs[2] || data[3] != rhs[3]);
+}
+
+// Unary plus
+Quat Quat::operator+() const {
+    return Quat(*this);
+}
+
+// Plus
+Quat Quat::operator+(const Quat& rhs) const {
+    const Quat& lhs = *this;
+    return Quat(lhs[0] + rhs[0], lhs[1] + rhs[1], lhs[2] + rhs[2], lhs[3] + rhs[3]);
+}
+
+// Plus equal
+Quat& Quat::operator+=(const Quat& rhs) {
     data[0] += rhs[0];
     data[1] += rhs[1];
     data[2] += rhs[2];
     data[3] += rhs[3];
     return *this;
 }
-// unary minus
-Vec4 Vec4::operator-() const {
-    const Vec4& lhs = *this;
-    return Vec4(-lhs[0], -lhs[1], -lhs[2], -lhs[3]);
+
+// Unary minus
+Quat Quat::operator-() const {
+    const Quat& lhs = *this;
+    return Quat(-lhs[0], -lhs[1], -lhs[2], -lhs[3]);
 }
 
-// minus
-Vec4 Vec4::operator-(const Vec4& rhs) const {
-    const Vec4& lhs = *this;
-    return Vec4(lhs[0] - rhs[0], lhs[1] - rhs[1], lhs[2] - rhs[2], lhs[3] - rhs[3]);
+// Minus
+Quat Quat::operator-(const Quat& rhs) const {
+    const Quat& lhs = *this;
+    return Quat(lhs[0] - rhs[0], lhs[1] - rhs[1], lhs[2] - rhs[2], lhs[3] - rhs[3]);
 }
-Vec4& Vec4::operator-=(const Vec4& rhs) {
+
+// Minus equal
+Quat& Quat::operator-=(const Quat& rhs) {
     data[0] -= rhs[0];
     data[1] -= rhs[1];
     data[2] -= rhs[2];
     data[3] -= rhs[3];
     return *this;
 }
-// scalar product
-Vec4 Vec4::operator*(double rhs) const {
-    const Vec4& lhs = *this;
-    return Vec4(lhs[0]*rhs, lhs[1]*rhs, lhs[2]*rhs, lhs[3]*rhs);
+
+// Product with scalar
+Quat Quat::operator*(double rhs) const {
+    const Quat& lhs = *this;
+    return Quat(lhs[0]*rhs, lhs[1]*rhs, lhs[2]*rhs, lhs[3]*rhs);
 }
-Vec4& Vec4::operator*=(double rhs) {
+
+// Times equal
+Quat& Quat::operator*=(double rhs) {
     data[0] *= rhs;
     data[1] *= rhs;
     data[2] *= rhs;
     data[3] *= rhs;
     return *this;
 }
-// scalar division
-Vec4 Vec4::operator/(double rhs) const {
-    const Vec4& lhs = *this;
+
+// Division with scalar
+Quat Quat::operator/(double rhs) const {
+    const Quat& lhs = *this;
     double scale = 1.0/rhs;
-    return Vec4(lhs[0]*scale, lhs[1]*scale, lhs[2]*scale, lhs[3]*scale);
+    return Quat(lhs[0]*scale, lhs[1]*scale, lhs[2]*scale, lhs[3]*scale);
 }
-Vec4& Vec4::operator/=(double rhs) {
+
+// Divided equal
+Quat& Quat::operator/=(double rhs) {
     double scale = 1.0/rhs;
     data[0] *= scale;
     data[1] *= scale;
@@ -381,14 +431,16 @@ Vec4& Vec4::operator/=(double rhs) {
     data[3] *= scale;
     return *this;
 }
-// dot product
-double Vec4::dot(const Vec4& rhs) const {
-    const Vec4& lhs = *this;
+
+// Dot product
+double Quat::dot(const Quat& rhs) const {
+    const Quat& lhs = *this;
     return lhs[0]*rhs[0] + lhs[1]*rhs[1] + lhs[2]*rhs[2] + lhs[3]*rhs[3];
 }
-// location of maximum component
-int Vec4::maxloc() {
-    const Vec4& lhs = *this;
+
+// Location of maximum component
+int Quat::maxloc() const {
+    const Quat& lhs = *this;
     int imax = 0;
     double vmax = lhs[0];
     for (int i = 1; i < 4; i++)
@@ -399,10 +451,57 @@ int Vec4::maxloc() {
     return imax;
 }
 
+// Premultiplication of B(q) by a vector
+Quat Quat::B(Vec3 x) const {
+    return Quat(-data[1]*x[0] - data[2]*x[1] - data[3]*x[2],
+                 data[0]*x[0] - data[3]*x[1] + data[2]*x[2],
+                 data[3]*x[0] + data[0]*x[1] - data[1]*x[2],
+                -data[2]*x[0] + data[1]*x[1] + data[0]*x[2]);
+}
+
+// Premultiplication of C(q) by a vector
+Quat Quat::C(Vec3 x) const {
+    return Quat(-data[1]*x[0] - data[2]*x[1] - data[3]*x[2],
+                 data[0]*x[0] + data[3]*x[1] - data[2]*x[2],
+                -data[3]*x[0] + data[0]*x[1] + data[1]*x[2],
+                 data[2]*x[0] - data[1]*x[1] + data[0]*x[2]);
+}
+
+// Premultiplication of B^t(q) by a quaternion
+Vec3 Quat::Bt(Quat y) const {
+    return Vec3(-data[1]*y[0] + data[0]*y[1] + data[3]*y[2] - data[2]*y[3],
+                -data[2]*y[0] - data[3]*y[1] + data[0]*y[2] + data[1]*y[3],
+                -data[3]*y[0] + data[2]*y[1] - data[1]*y[2] + data[0]*y[3]);
+}
+
+// Premultiplication of C^t(q) by a quaternion
+Vec3 Quat::Ct(Quat y) const {
+    return Vec3(-data[1]*y[0] + data[0]*y[1] - data[3]*y[2] + data[2]*y[3],
+                -data[2]*y[0] + data[3]*y[1] + data[0]*y[2] - data[1]*y[3],
+                -data[3]*y[0] - data[2]*y[1] + data[1]*y[2] + data[0]*y[3]);
+}
+
+Vec3 Quat::A(Vec3 x) const {
+    const Quat& q = *this;
+    return q.Bt(q.C(x));
+}
+
+Vec3 Quat::At(Vec3 x) const {
+    const Quat& q = *this;
+    return q.Ct(q.B(x));
+}
+
 /*------------------------------------------------------------------------------
  MISCELLANEOUS
 ------------------------------------------------------------------------------*/
 
-Mat3 RankOne(Vec3 x, Vec3 y) {
-    return Diag3(x)*Mat3(y,y,y);
+Projection::Projection(Vec3 x) {
+    row.resize(3);
+    row[0] = -x*x[0];
+    row[1] = -x*x[1];
+    row[2] = -x*x[2];
+    double xtx = x.dot(x);
+    row[0][0] += xtx;
+    row[1][1] += xtx;
+    row[2][2] += xtx;
 }
