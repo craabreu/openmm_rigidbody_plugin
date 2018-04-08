@@ -10,13 +10,52 @@
 #include "openmm/internal/ContextImpl.h"
 #include "internal/eigenDecomposition.h"
 #include <vector>
-#include <math.h>
+#include <cmath>
 
 #include <iostream> // TEMPORARY
 
 using namespace RigidBodyPlugin;
 using namespace OpenMM;
 using std::vector;
+
+/*--------------------------------------------------------------------------------------------------
+  Check whether all 3D vectors of a given set lie in the same straight line. If so, return a unit
+  vector denoting the direction of such line.
+--------------------------------------------------------------------------------------------------*/
+
+bool collinear(vector<Vec3>& delta, vector<double>& d2, Vec3& u) {
+    const double TOL = 1.0E-5;
+    double d0d0 = d2[0];
+    int jmax = 0;
+    double d2max = d0d0;
+    int N = delta.size();
+    for (int j = 1; j < N; j++)
+        if (d2[j] > d0d0) {
+            jmax = j;
+            d2max = d2[j];
+        }
+    u = delta[jmax]/sqrt(d2max);
+    bool isCollinear = true;
+    for (int j = 0; isCollinear && j < N; j++) {
+        double djdj = d2[j];
+        double udj = u.dot(delta[j]);
+        isCollinear = isCollinear && (djdj < TOL*d2max || abs(udj*udj/djdj - 1.0) < TOL);
+    }
+    return isCollinear;
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Return a unit vector orthogonal to a given vector u
+--------------------------------------------------------------------------------------------------*/
+
+Vec3 orthonormal(Vec3& u) {
+    int imin = u[0] < u[1] ? 0 : 1;
+    if (u[2] < u[imin]) imin = 2;
+    Vec3 v;
+    v[imin] = 1.0;
+    v = Projection(u)*v;
+    return v/sqrt(v.dot(v));
+}
 
 /*--------------------------------------------------------------------------------------------------
   Update the geometric and kinematic properties of a rigid body based on the positions and
@@ -38,20 +77,37 @@ void RigidBody::update(vector<Vec3>& R, vector<Vec3>& V, vector<double>& M) {
 
     // Center-of-mass displacements
     vector<Vec3> delta(N);
-    for (int j = 0; j < N; j++)
+    vector<double> d2(N);
+    for (int j = 0; j < N; j++) {
         delta[j] = R[atom[j]] - rcm;
+        d2[j] = delta[j].dot(delta[j]);
+    }
 
-    // Inertia tensor
-    Mat3 inertia;
-    for (int j = 0; j < N; j++)
-        inertia += Projection(delta[j])*M[atom[j]];
+    // Principal moments of inertia and inverse rotation matrix
+    Vec3 u;
+    Mat3 At;
+    if (collinear(delta, d2, u)) {
+        double I = 0.0;
+        for (int j = 0; j < N; j++)
+            I += M[atom[j]]*d2[j];
+        MoI = Vec3(I, I, 0.0);
+        invMoI = Vec3(1.0/I, 1.0/I, 0.0);
+        Vec3 v = orthonormal(u);
+        At = Mat3(v, v.cross(u), u);
+        dof = 5;
+    }
+    else {
+        Mat3 inertia;
+        for (int j = 0; j < N; j++)
+            inertia += Projection(delta[j])*M[atom[j]];
+        eigenDecomposition(inertia, At, MoI);
+        invMoI = Vec3(1.0/MoI[0], 1.0/MoI[1], 1.0/MoI[2]);
+        dof = 6;
+    }
 
-    // Principal moments of inertia, rotation matrix, and orientation quaternion
-    Mat3 A;
-    eigenDecomposition(inertia, A, MoI);
-    A = A.t();
+    // Rotation matrix
+    Mat3 A = At.t();
     q = Quat(A);
-    invMoI = Vec3(1.0/MoI[0], 1.0/MoI[1], 1.0/MoI[2]);
 
     // Atom positions in the body-fixed frame of reference
     for (int j = 0; j < N; j++)
@@ -85,6 +141,7 @@ void RigidBody::updateVelocities(vector<Vec3>& V, vector<double>& M) {
     }
     Vec3 omega = Diag3(invMoI)*L;
     double Kr = 0.5*L.dot(omega);
+    
 }
 
 /*--------------------------------------------------------------------------------------------------
