@@ -62,7 +62,7 @@ Vec3 orthonormal(Vec3& u) {
   velocities of individual atoms.
 --------------------------------------------------------------------------------------------------*/
 
-void RigidBody::update(vector<Vec3>& R, vector<Vec3>& V, vector<double>& M) {
+void RigidBody::updateGeometry(vector<Vec3>& R, vector<double>& M) {
 
     // Total mass and center-of-mass position
     mass = 0.0;
@@ -122,26 +122,21 @@ void RigidBody::update(vector<Vec3>& R, vector<Vec3>& V, vector<double>& M) {
 void RigidBody::updateVelocities(vector<Vec3>& V, vector<double>& M) {
 
     // Total kinetic energy and center-of-mass velocity
-    double K = 0.0;
     Vec3 pcm;
     for (int j = 0; j < N; j++) {
         int i = atom[j];
         Vec3 p = V[i]*M[i];
-        K += 0.5*p.dot(V[i]);
         pcm += p;
     }
     vcm = pcm/mass;
-    double Kt = 0.5*pcm.dot(vcm);
 
-    // Body-fixed angular velocity
+    // Quaternion-conjugated momentum
     Vec3 L;
     for (int j = 0; j < N; j++) {
         int i = atom[j];
         L += d[j].cross(q.A(V[i] - vcm)*M[i]);
     }
-    Vec3 omega = Diag3(invMoI)*L;
-    double Kr = 0.5*L.dot(omega);
-    
+    pi = q.B(L)*2.0;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -246,37 +241,22 @@ RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bod
   Update the kinematic properties of all rigid bodies.
 --------------------------------------------------------------------------------------------------*/
 
-void RigidBodySystem::update() {
+void RigidBodySystem::update(bool geometry, bool velocities) {
     const System* system = &context->getSystem();
     int N = system->getNumParticles();
-    vector<Vec3> positions(N), velocities(N);
-    vector<double> masses(N);
-    context->getPositions(positions);
-    context->getVelocities(velocities);
+    vector<double> M(N);
     for (int i = 0; i < N; i++)
-      masses[i] = system->getParticleMass(i);
-    for (auto&b : body) {
-        b.update(positions, velocities, masses);
-//        b.updateVelocities(positions, velocities, masses);
+        M[i] = system->getParticleMass(i);
+    if (geometry) {
+        vector<Vec3> R(N);
+        context->getPositions(R);
+        for (auto& b : body)
+            b.updateGeometry(R, M);
     }
-}
-
-
-/*--------------------------------------------------------------------------------------------------
-  Update the linear and angular velocities of all rigid bodies.
---------------------------------------------------------------------------------------------------*/
-
-void RigidBodySystem::updateVelocities() {
-    const System* system = &context->getSystem();
-    int N = system->getNumParticles();
-    vector<Vec3> positions(N), velocities(N);
-    vector<double> masses(N);
-    context->getPositions(positions);
-    context->getVelocities(velocities);
-    for (int i = 0; i < N; i++)
-      masses[i] = system->getParticleMass(i);
-    for (auto&b : body) {
-//        b.update(positions, velocities, masses);
-        b.updateVelocities(velocities, masses);
+    if (velocities) {
+        vector<Vec3> V(N);
+        context->getVelocities(V);
+        for (auto& b : body)
+            b.updateVelocities(V, M);
     }
 }

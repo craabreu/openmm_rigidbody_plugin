@@ -46,9 +46,9 @@ vector<string> RigidBodyIntegrator::getKernelNames() {
 
 void RigidBodyIntegrator::stateChanged(State::DataType changed) {
     if (changed == State::Positions)
-        bodySystem->update();
+        bodySystem->update(true, true);
     else if (changed == State::Velocities)
-        bodySystem->updateVelocities();
+        bodySystem->update(false, true);
 }
 
 double RigidBodyIntegrator::computeKineticEnergy() {
