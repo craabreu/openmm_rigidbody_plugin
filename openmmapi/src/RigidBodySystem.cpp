@@ -122,13 +122,12 @@ void RigidBody::updateGeometry(vector<Vec3>& R, vector<double>& M) {
 void RigidBody::updateVelocities(vector<Vec3>& V, vector<double>& M) {
 
     // Total kinetic energy and center-of-mass velocity
-    Vec3 pcm;
     for (int j = 0; j < N; j++) {
         int i = atom[j];
         Vec3 p = V[i]*M[i];
         pcm += p;
     }
-    vcm = pcm/mass;
+    Vec3 vcm = pcm/mass;
 
     // Quaternion-conjugated momentum
     Vec3 L;

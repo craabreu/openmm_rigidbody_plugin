@@ -62,7 +62,7 @@ public:
      *
      * @param integrator the RigidBodyIntegrator this kernel will be used for
      */
-    virtual void uploadBodySystem(const RigidBodyIntegrator& integrator) = 0;
+    virtual void uploadBodySystem(RigidBodySystem& bodySystem) = 0;
     /**
      * Execute the kernel.
      * 

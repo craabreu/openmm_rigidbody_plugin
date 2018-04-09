@@ -22,17 +22,20 @@ public:
     void updateVelocities(vector<Vec3>& V, vector<double>& M);
 
     int    N = 0;         // number of atoms
+    double mass;          // total body mass and its inverse
+    Vec3   MoI;           // Principal moments of inertia and their inverses
+    Vec3   rcm;           // Center-of-mass position
+    Vec3   pcm;           // Center-of-mass momentum
+    Quat   q;             // Unit orientation quaternion
+    Quat   pi;            // Quaternion-conjugated momentum
+
     int    loc;           // location of first atom index
     int*   atom;          // pointer to the index of the first atom
     Vec3*  d;             // pointer to the body-fixed position of the first atom
 private:
     int    dof;           // Number of degrees of freedom
-    double mass, invMass; // total body mass and its inverse
-    Vec3   MoI, invMoI;   // Principal moments of inertia and their inverses
-    Vec3   rcm;           // Center-of-mass position
-    Vec3   vcm;           // Center-of-mass velocity
-    Quat   q;             // Unit orientation quaternion
-    Quat   pi;            // Quaternion-conjugated momentum
+    double invMass;       // inverse of total body mass
+    Vec3   invMoI;        // inverses of principal moments of inertia
 };
 
 
@@ -47,6 +50,7 @@ public:
     int getNumBodyAtoms() { return numBodyAtoms; }
     int getAtomIndex(int i) { return atomIndex[i]; }
     Vec3 getBodyFixedPosition(int i) { return bodyFixedPositions[i]; }
+    RigidBody* getRigidBody(int i) { return &body[i]; }
 private:
     ContextImpl* context;
     std::vector<int> bodyIndex;

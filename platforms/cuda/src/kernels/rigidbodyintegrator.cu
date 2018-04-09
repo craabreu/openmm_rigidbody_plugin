@@ -9,8 +9,8 @@ extern "C" typedef struct {
     mixed3 p;    // center-of-mass momentum
     mixed3 I;    // principal moments of inertia
     mixed4 q;    // orientation quaternion
-    mixed3 w;    // angular velocity
-    int*   atom; // pointer to set of atoms
+    mixed4 pi;   // quaternion-conjugated momentum
+    int    loc;  // pointer to set of atoms
 } bodyData;
 
 
@@ -94,44 +94,5 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms, mixed2* __restr
 #endif
             velm[index] = velocity;
         }
-    }
-}
-
-/**
- * Select the step size to use for the next step.
- */
-
-extern "C" __global__ void selectRigidBodyStepSize(int numAtoms, int paddedNumAtoms, mixed maxStepSize, mixed errorTol, mixed2* __restrict__ dt, const mixed4* __restrict__ velm, const long long* __restrict__ force) {
-    // Calculate the error.
-
-    extern __shared__ mixed error[];
-    mixed err = 0.0f;
-    const mixed scale = RECIP((mixed) 0x100000000);
-    for (int index = threadIdx.x; index < numAtoms; index += blockDim.x*gridDim.x) {
-        mixed3 f = make_mixed3(scale*force[index], scale*force[index+paddedNumAtoms], scale*force[index+paddedNumAtoms*2]);
-        mixed invMass = velm[index].w;
-        err += (f.x*f.x + f.y*f.y + f.z*f.z)*invMass*invMass;
-    }
-    error[threadIdx.x] = err;
-    __syncthreads();
-
-    // Sum the errors from all threads.
-
-    for (unsigned int offset = 1; offset < blockDim.x; offset *= 2) {
-        if (threadIdx.x+offset < blockDim.x && (threadIdx.x&(2*offset-1)) == 0)
-            error[threadIdx.x] += error[threadIdx.x+offset];
-        __syncthreads();
-    }
-    if (threadIdx.x == 0) {
-        mixed totalError = SQRT(error[0]/(numAtoms*3));
-        mixed newStepSize = SQRT(errorTol/totalError);
-        mixed oldStepSize = dt[0].y;
-        if (oldStepSize > 0.0f)
-            newStepSize = min(newStepSize, oldStepSize*2.0f); // For safety, limit how quickly dt can increase.
-        if (newStepSize > oldStepSize && newStepSize < 1.1f*oldStepSize)
-            newStepSize = oldStepSize; // Keeping dt constant between steps improves the behavior of the integrator.
-        if (newStepSize > maxStepSize)
-            newStepSize = maxStepSize;
-        dt[0].y = newStepSize;
     }
 }

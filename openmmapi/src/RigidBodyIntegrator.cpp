@@ -50,7 +50,7 @@ void RigidBodyIntegrator::stateChanged(State::DataType changed) {
             bodySystem->update(true, true);
         else
             bodySystem->update(false, true);
-        kernel.getAs<IntegrateRigidBodyStepKernel>().uploadBodySystem(*this);
+        kernel.getAs<IntegrateRigidBodyStepKernel>().uploadBodySystem(*this->bodySystem);
     }
 }
 
