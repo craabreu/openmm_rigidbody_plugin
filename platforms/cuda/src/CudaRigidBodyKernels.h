@@ -33,7 +33,6 @@
  * -------------------------------------------------------------------------- */
 
 #include "RigidBodyKernels.h"
-#include "RigidBodyIntegrator.h"
 #include "openmm/cuda/CudaContext.h"
 #include "openmm/cuda/CudaArray.h"
 
@@ -55,6 +54,12 @@ public:
      */
     void initialize(const OpenMM::System& system, const RigidBodyIntegrator& integrator);
     /**
+     * Upload the rigid body system to the device.
+     *
+     * @param integrator the RigidBodyIntegrator this kernel will be used for
+     */
+    void uploadBodySystem(const RigidBodyIntegrator& integrator);
+    /**
      * Execute the kernel.
      *
      * @param context    the context in which to execute this kernel
@@ -72,20 +77,20 @@ private:
     /**
      * Determine the size of body data structure in Cuda kernels
      */
-    int getBodyDataSize(CUmodule& module);
+    size_t getBodyDataSize(CUmodule& module);
 
     OpenMM::CudaContext& cu;
     CUfunction kernel1, kernel2;
+    void* pinnedBuffer;
 
-    int numAtoms;                // number of actual atoms
-    int numFree;                 // number of free atoms
-    int numBodies;               // number of rigid bodies
-    OpenMM::CudaArray atomIndex; // array of indices of free atoms and rigid-body atoms (*)
-    OpenMM::CudaArray bodyData;  // array of rigid body data
+    OpenMM::CudaArray atomIndex;    // array of indices of free atoms and rigid-body atoms (*)
+    OpenMM::CudaArray bodyData;     // array of rigid body data
+    OpenMM::CudaArray bodyFixedPos; // array of body-fixed positions of rigid-body atoms
     // (*) The first numFree indices must correspond to free atoms
 
-    int paddedNumAtoms;
+    int paddedNumActualAtoms;
     int paddedNumBodies;
+    int paddedNumBodyAtoms;
 };
 
 } // namespace RigidBodyPlugin

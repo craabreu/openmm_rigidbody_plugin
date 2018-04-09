@@ -14,8 +14,8 @@ extern "C" typedef struct {
 } bodyData;
 
 
-extern "C" __global__ void getBodyDataSize(int* __restrict__ size) {
-    size[0] = (int)sizeof(bodyData);
+extern "C" __global__ void getBodyDataSize(size_t* __restrict__ size) {
+    size[0] = sizeof(bodyData);
 }
 
 

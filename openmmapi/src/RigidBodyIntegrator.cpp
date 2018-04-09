@@ -45,10 +45,13 @@ vector<string> RigidBodyIntegrator::getKernelNames() {
 }
 
 void RigidBodyIntegrator::stateChanged(State::DataType changed) {
-    if (changed == State::Positions)
-        bodySystem->update(true, true);
-    else if (changed == State::Velocities)
-        bodySystem->update(false, true);
+    if (changed == State::Positions || changed == State::Velocities) {
+        if (changed == State::Positions)
+            bodySystem->update(true, true);
+        else
+            bodySystem->update(false, true);
+        kernel.getAs<IntegrateRigidBodyStepKernel>().uploadBodySystem(*this);
+    }
 }
 
 double RigidBodyIntegrator::computeKineticEnergy() {

@@ -38,21 +38,22 @@
 #include "openmm/cuda/CudaForceInfo.h"
 #include "openmm/cuda/CudaIntegrationUtilities.h"
 
+#include <iostream> // TEMPORARY
+
 using namespace RigidBodyPlugin;
 using namespace OpenMM;
 using namespace std;
 
-int CudaIntegrateRigidBodyStepKernel::getBodyDataSize(CUmodule& module) {
+size_t CudaIntegrateRigidBodyStepKernel::getBodyDataSize(CUmodule& module) {
     CUfunction kernel = cu.getKernel(module, "getBodyDataSize");
     CUdeviceptr pointer;
-    CUresult result;
-    result = cuMemAlloc(&pointer, sizeof(int));
-    if (result != CUDA_SUCCESS)
-        throw OpenMMException("Error creating variable for rigid body data size");
     void* arg[] = {&pointer};
+    CUresult result = cuMemAlloc(&pointer, sizeof(size_t));
+    if (result != CUDA_SUCCESS)
+        throw OpenMMException("Error creating variable for retrieving rigid body data size");
     cu.executeKernel(kernel, arg, 1, 128);
-    int bodyDataSize;
-    result = cuMemcpyDtoH(&bodyDataSize, pointer, sizeof(int));
+    size_t bodyDataSize;
+    result = cuMemcpyDtoH(&bodyDataSize, pointer, sizeof(size_t));
     if (result != CUDA_SUCCESS)
         throw OpenMMException("Error retrieving rigid body data size from device memory");
     return bodyDataSize;
@@ -66,21 +67,68 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system, const Ri
     kernel1 = cu.getKernel(module, "integrateRigidBodyPart1");
     kernel2 = cu.getKernel(module, "integrateRigidBodyPart2");
 
-//    numAtoms = integrator.getNumActualAtoms();
-//    numBodies = integrator.getNumBodies();
-//    numFree = integrator.getNumFreeAtoms();
+    RigidBodySystem* bodySystem = integrator.getRigidBodySystem();
+    int numActualAtoms = bodySystem->getNumActualAtoms();
+    int numBodies = bodySystem->getNumBodies();
+    int numBodyAtoms = bodySystem->getNumBodyAtoms();
 
-    // Allocate array of atom indices:
+    // Compute padded numbers:
     int TileSize = cu.TileSize;
-    paddedNumAtoms = TileSize*((numAtoms + TileSize - 1)/TileSize);
-    atomIndex.initialize<int>(cu, paddedNumAtoms, "atomIndex");
+    paddedNumActualAtoms = TileSize*((numActualAtoms + TileSize - 1)/TileSize);
+    paddedNumBodies = TileSize*((numBodies + TileSize - 1)/TileSize);
+    paddedNumBodyAtoms = TileSize*((numBodyAtoms + TileSize - 1)/TileSize);
 
-    // Allocate array of body data:
-    if (numBodies) {
-        int bodyDataSize = getBodyDataSize(module);
-        paddedNumBodies = cu.TileSize*((numBodies + cu.TileSize - 1)/cu.TileSize);
+    // Create pinned buffer for fast memory transfer:
+    size_t bodyDataSize = getBodyDataSize(module);
+    size_t bodyFixedPosSize = cu.getUseDoublePrecision() ? sizeof(double3) : sizeof(float3);
+    size_t pinnedBufferSize = max(paddedNumBodies*bodyDataSize, max(
+                                  paddedNumActualAtoms*sizeof(int),
+                                  paddedNumBodyAtoms*bodyFixedPosSize));
+    CUresult result = cuMemHostAlloc(&pinnedBuffer, pinnedBufferSize, 0);
+    if (result != CUDA_SUCCESS)
+        throw OpenMMException("Error creating pinned buffer for rigid body integration");
+
+    // Allocate and upload array of atom indices:
+    atomIndex.initialize<int>(cu, paddedNumActualAtoms, "atomIndex");
+    int* index = (int*) pinnedBuffer;
+    for (int i = 0; i < numActualAtoms; ++i)
+        index[i] = bodySystem->getAtomIndex(i);
+    atomIndex.upload(index);
+
+    // Allocate arrays of body data and body-fixed atom positions, if necessary:
+    if (numBodies != 0) {
         bodyData.initialize(cu, paddedNumBodies, bodyDataSize, "bodyData");
+        if (cu.getUseDoublePrecision())
+            bodyFixedPos.initialize<double3>(cu, paddedNumBodyAtoms, "bodyFixedPos");
+        else
+            bodyFixedPos.initialize<float3>(cu, paddedNumBodyAtoms, "bodyFixedPos");
     }
+}
+
+void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(const RigidBodyIntegrator& integrator) {
+    cu.setAsCurrent();
+    RigidBodySystem* bodySystem = integrator.getRigidBodySystem();
+    int numBodies = bodySystem->getNumBodies();
+    if (numBodies != 0) {
+        int numBodyAtoms = bodySystem->getNumBodyAtoms();
+        if (cu.getUseDoublePrecision()) {
+            double3* d = (double3*) pinnedBuffer;
+            for (int i = 0; i < numBodyAtoms; ++i) {
+                Vec3 x = bodySystem->getBodyFixedPosition(i);
+                d[i] = make_double3(x[0], x[1], x[2]);
+            }
+            bodyFixedPos.upload(d);
+        }
+        else {
+            float3* d = (float3*) pinnedBuffer;
+            for (int i = 0; i < numBodyAtoms; ++i) {
+                Vec3 x = bodySystem->getBodyFixedPosition(i);
+                d[i] = make_float3((float)x[0], (float)x[1], (float)x[2]);
+            }
+            bodyFixedPos.upload(d);
+        }
+    }
+    cout<<"TEST\n";
 }
 
 void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const RigidBodyIntegrator& integrator) {

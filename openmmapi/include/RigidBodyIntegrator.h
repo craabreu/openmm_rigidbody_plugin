@@ -63,6 +63,10 @@ public:
      * Retrieve a vector of integers containing the rigid-body indices.
      */
     std::vector<int> getBodyIndices() const;
+    /**
+     * Pointer to the system of rigid bodies 
+     */
+     RigidBodySystem* getRigidBodySystem() const { return bodySystem; }
 protected:
     /**
      * This will be called by the Context when it is created.  It informs the Integrator

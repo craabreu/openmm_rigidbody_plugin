@@ -58,6 +58,12 @@ public:
      */
     virtual void initialize(const OpenMM::System& system, const RigidBodyIntegrator& integrator) = 0;
     /**
+     * Upload the rigid body system.
+     *
+     * @param integrator the RigidBodyIntegrator this kernel will be used for
+     */
+    virtual void uploadBodySystem(const RigidBodyIntegrator& integrator) = 0;
+    /**
      * Execute the kernel.
      * 
      * @param context    the context in which to execute this kernel

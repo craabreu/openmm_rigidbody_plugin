@@ -41,6 +41,12 @@ public:
     RigidBodySystem(ContextImpl& contextRef, const vector<int>& bodyIndices);
 
     void update(bool geometry, bool velocities);
+    int getNumFree() { return numFree; }
+    int getNumBodies() { return numBodies; }
+    int getNumActualAtoms() { return numActualAtoms; }
+    int getNumBodyAtoms() { return numBodyAtoms; }
+    int getAtomIndex(int i) { return atomIndex[i]; }
+    Vec3 getBodyFixedPosition(int i) { return bodyFixedPositions[i]; }
 private:
     ContextImpl* context;
     std::vector<int> bodyIndex;
@@ -51,7 +57,6 @@ private:
     int numBodies;
     int numActualAtoms;
     int numBodyAtoms;
-    bool upToDate = false;
 };
 
 }
