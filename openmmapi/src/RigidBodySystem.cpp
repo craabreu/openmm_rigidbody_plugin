@@ -202,7 +202,7 @@ RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bod
             numActualAtoms--;
     atomIndex.resize(numActualAtoms);
 
-    int numFree = 0;
+    numFree = 0;
     body.resize(numBodies);
     for (int i = 0; i < numAtoms; i++)
         if (!system->isVirtualSite(i)) {

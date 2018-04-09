@@ -88,6 +88,8 @@ private:
     OpenMM::CudaArray bodyFixedPos; // array of body-fixed positions of rigid-body atoms
     // (*) The first numFree indices must correspond to free atoms
 
+    int numBodies;
+    int numFree;
     int paddedNumActualAtoms;
     int paddedNumBodies;
     int paddedNumBodyAtoms;

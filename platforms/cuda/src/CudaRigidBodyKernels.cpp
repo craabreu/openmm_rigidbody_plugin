@@ -97,8 +97,9 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system, const Ri
         throw OpenMMException("Error in size of memory chunk allocated for body data");
     
     RigidBodySystem* bodySystem = integrator.getRigidBodySystem();
+    numBodies = bodySystem->getNumBodies();
+    numFree = bodySystem->getNumFree();
     int numActualAtoms = bodySystem->getNumActualAtoms();
-    int numBodies = bodySystem->getNumBodies();
     int numBodyAtoms = bodySystem->getNumBodyAtoms();
 
     // Compute padded numbers:
@@ -198,8 +199,10 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const Rigid
     // Call the first integration kernel.
 
     CUdeviceptr posCorrection = (cu.getUseMixedPrecision() ? cu.getPosqCorrection().getDevicePointer() : 0);
+//    cout<<numFree<<"\n";
     void* args1[] = {&numAtoms, &paddedNumAtoms, &cu.getIntegrationUtilities().getStepSize().getDevicePointer(), &cu.getPosq().getDevicePointer(), &posCorrection,
-            &cu.getVelm().getDevicePointer(), &cu.getForce().getDevicePointer(), &integration.getPosDelta().getDevicePointer()};
+            &cu.getVelm().getDevicePointer(), &cu.getForce().getDevicePointer(), &integration.getPosDelta().getDevicePointer(),
+            &numBodies, &numFree, &bodyData.getDevicePointer(), &atomIndex.getDevicePointer(), &bodyFixedPos.getDevicePointer()};
     cu.executeKernel(kernel1, args1, numAtoms, 128);
 
     // Apply constraints.
@@ -209,7 +212,8 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const Rigid
     // Call the second integration kernel.
 
     void* args2[] = {&numAtoms, &cu.getIntegrationUtilities().getStepSize().getDevicePointer(), &cu.getPosq().getDevicePointer(), &posCorrection,
-            &cu.getVelm().getDevicePointer(), &integration.getPosDelta().getDevicePointer()};
+            &cu.getVelm().getDevicePointer(), &integration.getPosDelta().getDevicePointer(),
+            &numBodies, &numFree, &bodyData.getDevicePointer(), &atomIndex.getDevicePointer(), &bodyFixedPos.getDevicePointer()};
     cu.executeKernel(kernel2, args2, numAtoms, 128);
     integration.computeVirtualSites();
 
