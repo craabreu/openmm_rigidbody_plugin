@@ -57,7 +57,7 @@ void OpenCLIntegrateRigidBodyStepKernel::initialize(const System& system, const 
     kernel2 = cl::Kernel(program, "integrateRigidBodyPart2");
 }
 
-void OpenCLIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+void OpenCLIntegrateRigidBodyStepKernel::initialIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     OpenCLIntegrationUtilities& integration = cl.getIntegrationUtilities();
     int numAtoms = cl.getNumAtoms();
     double dt = integrator.getStepSize();
@@ -103,6 +103,9 @@ void OpenCLIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const Rig
 #ifdef WIN32
     cl.getQueue().flush();
 #endif
+}
+
+void OpenCLIntegrateRigidBodyStepKernel::finalIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
 }
 
 double OpenCLIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator) {

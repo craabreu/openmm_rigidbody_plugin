@@ -188,7 +188,7 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
     }
 }
 
-void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+void CudaIntegrateRigidBodyStepKernel::initialIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     cu.setAsCurrent();
     CudaIntegrationUtilities& integration = cu.getIntegrationUtilities();
     int numAtoms = cu.getNumAtoms();
@@ -222,6 +222,9 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const Rigid
     cu.setTime(cu.getTime()+dt);
     cu.setStepCount(cu.getStepCount()+1);
     cu.reorderAtoms();
+}
+
+void CudaIntegrateRigidBodyStepKernel::finalIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
 }
 
 double CudaIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator) {

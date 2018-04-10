@@ -233,7 +233,7 @@ RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bod
 
     cout<<"Number of bodies = "<<numBodies<<"\n"
         <<"Number of actual atoms = "<<numActualAtoms<<"\n"
-        <<"Number of free atoms = "<<numFree<<"\n";
+        <<"Number of free atoms = "<<numFree<<"\n";            // REMOVER DEPOIS
 }
 
 /*--------------------------------------------------------------------------------------------------

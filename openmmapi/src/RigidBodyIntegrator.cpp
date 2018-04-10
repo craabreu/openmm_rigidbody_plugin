@@ -46,8 +46,11 @@ vector<string> RigidBodyIntegrator::getKernelNames() {
 
 void RigidBodyIntegrator::stateChanged(State::DataType changed) {
     if (changed == State::Positions || changed == State::Velocities) {
-        if (changed == State::Positions)
+        if (changed == State::Positions) {
+            context->updateContextState();
+            context->calcForcesAndEnergy(true, false);
             bodySystem->update(true, true);
+        }
         else
             bodySystem->update(false, true);
         kernel.getAs<IntegrateRigidBodyStepKernel>().uploadBodySystem(*this->bodySystem);
@@ -68,6 +71,6 @@ void RigidBodyIntegrator::step(int steps) {
     for (int i = 0; i < steps; ++i) {
         context->updateContextState();
         context->calcForcesAndEnergy(true, false);
-        kernel.getAs<IntegrateRigidBodyStepKernel>().execute(*context, *this);
+        kernel.getAs<IntegrateRigidBodyStepKernel>().initialIntegrate(*context, *this);
     }
 }
