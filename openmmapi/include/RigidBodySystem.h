@@ -18,7 +18,7 @@ namespace RigidBodyPlugin {
 
 class RigidBody {
 public:
-    void updateGeometry(vector<Vec3>& R, vector<double>& M);
+    void updateGeometry(vector<Vec3>& R, vector<Vec3>& F, vector<double>& M);
     void updateVelocities(vector<Vec3>& V, vector<double>& M);
 
     int    N = 0;         // number of atoms
@@ -28,6 +28,9 @@ public:
     Vec3   pcm;           // Center-of-mass momentum
     Quat   q;             // Unit orientation quaternion
     Quat   pi;            // Quaternion-conjugated momentum
+
+    Vec3   force;
+    Quat   torque;
 
     int    loc;           // location of first atom index
     int*   atom;          // pointer to the index of the first atom

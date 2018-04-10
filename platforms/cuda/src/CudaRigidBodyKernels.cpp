@@ -45,25 +45,29 @@ using namespace OpenMM;
 using namespace std;
 
 typedef struct {
-    int    N;    // number of atoms
-    float  m;    // mass
-    float3 r;    // center-of-mass position
-    float3 p;    // center-of-mass momentum
-    float3 I;    // principal moments of inertia
-    float4 q;    // orientation quaternion
-    float4 pi;   // quaternion-conjugated momentum
-    int    loc;  // pointer to set of atoms
+    int    N;     // number of atoms
+    int    loc;   // pointer to set of atoms
+    float  m;     // mass
+    float3 I;     // principal moments of inertia
+    float3 r;     // center-of-mass position
+    float3 p;     // center-of-mass momentum
+    float3 F;     // resultant force
+    float4 q;     // orientation quaternion
+    float4 pi;    // quaternion-conjugated momentum
+    float4 Ctau2; // quaternion-frame resultant torque
 } bodyDataFloat;
 
 typedef struct {
-    int     N;    // number of atoms
-    double  m;    // mass
-    double3 r;    // center-of-mass position
-    double3 p;    // center-of-mass momentum
-    double3 I;    // principal moments of inertia
-    double4 q;    // orientation quaternion
-    double4 pi;   // quaternion-conjugated momentum
-    int     loc;  // pointer to set of atoms
+    int     N;     // number of atoms
+    int     loc;   // pointer to set of atoms
+    double  m;     // mass
+    double3 I;     // principal moments of inertia
+    double3 r;     // center-of-mass position
+    double3 p;     // center-of-mass momentum
+    double3 F;     // resultant force
+    double4 q;     // orientation quaternion
+    double4 pi;    // quaternion-conjugated momentum
+    double4 Ctau2; // quaternion-frame resultant torque
 } bodyDataDouble;
 
 size_t CudaIntegrateRigidBodyStepKernel::getBodyDataSize(CUmodule& module) {
@@ -147,11 +151,13 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 body.N = b.N;
                 body.loc = b.loc;
                 body.m = b.mass;
+                body.I = make_double3(b.MoI[0], b.MoI[1], b.MoI[2]);
                 body.r = make_double3(b.rcm[0], b.rcm[1], b.rcm[2]);
                 body.p = make_double3(b.pcm[0], b.pcm[1], b.pcm[2]);
-                body.I = make_double3(b.MoI[0], b.MoI[1], b.MoI[2]);
+                body.F = make_double3(b.force[0], b.force[1], b.force[2]);
                 body.q = make_double4(b.q[0], b.q[1], b.q[2], b.q[3]);
                 body.pi = make_double4(b.pi[0], b.pi[1], b.pi[2], b.pi[3]);
+                body.Ctau2 = make_double4(b.torque[0], b.torque[1], b.torque[2], b.torque[3]);
             }
             bodyData.upload(data);
 
@@ -170,11 +176,13 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 body.N = b.N;
                 body.loc = b.loc;
                 body.m = (float)b.mass;
+                body.I = make_float3((float)b.MoI[0], (float)b.MoI[1], (float)b.MoI[2]);
                 body.r = make_float3((float)b.rcm[0], (float)b.rcm[1], (float)b.rcm[2]);
                 body.p = make_float3((float)b.pcm[0], (float)b.pcm[1], (float)b.pcm[2]);
-                body.I = make_float3((float)b.MoI[0], (float)b.MoI[1], (float)b.MoI[2]);
+                body.F = make_float3((float)b.force[0], (float)b.force[1], (float)b.force[2]);
                 body.q = make_float4((float)b.q[0], (float)b.q[1], (float)b.q[2], (float)b.q[3]);
                 body.pi = make_float4((float)b.pi[0], (float)b.pi[1], (float)b.pi[2], (float)b.pi[3]);
+                body.Ctau2 = make_float4((float)b.torque[0], (float)b.torque[1], (float)b.torque[2], (float)b.torque[3]);
             }
             bodyData.upload(data);
 
@@ -189,6 +197,9 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
 }
 
 void CudaIntegrateRigidBodyStepKernel::initialIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+}
+
+void CudaIntegrateRigidBodyStepKernel::finalIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     cu.setAsCurrent();
     CudaIntegrationUtilities& integration = cu.getIntegrationUtilities();
     int numAtoms = cu.getNumAtoms();
@@ -222,9 +233,6 @@ void CudaIntegrateRigidBodyStepKernel::initialIntegrate(ContextImpl& context, co
     cu.setTime(cu.getTime()+dt);
     cu.setStepCount(cu.getStepCount()+1);
     cu.reorderAtoms();
-}
-
-void CudaIntegrateRigidBodyStepKernel::finalIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
 }
 
 double CudaIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator) {

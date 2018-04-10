@@ -62,7 +62,7 @@ Vec3 orthonormal(Vec3& u) {
   velocities of individual atoms.
 --------------------------------------------------------------------------------------------------*/
 
-void RigidBody::updateGeometry(vector<Vec3>& R, vector<double>& M) {
+void RigidBody::updateGeometry(vector<Vec3>& R, vector<Vec3>& F, vector<double>& M) {
 
     // Total mass and center-of-mass position
     mass = 0.0;
@@ -112,6 +112,16 @@ void RigidBody::updateGeometry(vector<Vec3>& R, vector<double>& M) {
     // Atom positions in the body-fixed frame of reference
     for (int j = 0; j < N; j++)
         d[j] = A*delta[j];
+
+    // Resultant force and quaternion-frame resultant torque
+    force = Vec3();
+    Vec3 tau;
+    for (int j = 0; j < N; j++) {
+        int i = atom[j];
+        force += F[i];
+        tau += delta[j].cross(F[i]);
+    }
+    torque = q.C(tau)*2.0;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -247,10 +257,11 @@ void RigidBodySystem::update(bool geometry, bool velocities) {
     for (int i = 0; i < N; i++)
         M[i] = system->getParticleMass(i);
     if (geometry) {
-        vector<Vec3> R(N);
+        vector<Vec3> R(N), F(N);
         context->getPositions(R);
+        context->getForces(F);
         for (auto& b : body)
-            b.updateGeometry(R, M);
+            b.updateGeometry(R, F, M);
     }
     if (velocities) {
         vector<Vec3> V(N);

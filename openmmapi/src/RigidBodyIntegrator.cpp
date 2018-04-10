@@ -69,8 +69,9 @@ void RigidBodyIntegrator::step(int steps) {
     if (context == NULL)
         throw OpenMMException("This Integrator is not bound to a context!");
     for (int i = 0; i < steps; ++i) {
+        kernel.getAs<IntegrateRigidBodyStepKernel>().initialIntegrate(*context, *this);
         context->updateContextState();
         context->calcForcesAndEnergy(true, false);
-        kernel.getAs<IntegrateRigidBodyStepKernel>().initialIntegrate(*context, *this);
+        kernel.getAs<IntegrateRigidBodyStepKernel>().finalIntegrate(*context, *this);
     }
 }
