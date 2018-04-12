@@ -108,9 +108,9 @@ inline __device__ void forceAndTorque(int paddedNumAtoms,
 
 extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
                                                    int paddedNumAtoms,
-                                                   const mixed2* __restrict__ dt,
-                                                   const real4* __restrict__ posq,
-                                                   const real4* __restrict__ posqCorrection,
+                                                   mixed2* __restrict__ dt,
+                                                   real4* __restrict__ posq,
+                                                   real4* __restrict__ posqCorrection,
                                                    mixed4* __restrict__ velm,
                                                    const long long* __restrict__ force,
                                                    mixed4* __restrict__ posDelta,
@@ -118,10 +118,11 @@ extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
                                                    int numFree,
                                                    bodyData* __restrict__ body,
                                                    const int* __restrict__ atomIndex,
-                                                   const mixed3* __restrict__ bodyFixedPos) {
+                                                   const mixed3* __restrict__ bodyFixedPos,
+                                                   mixed4* __restrict__ savedPos) {
     const mixed2 stepSize = dt[0];
     const mixed dtPos = stepSize.y;
-    const mixed dtVel = 0.5f*(stepSize.x+stepSize.y);
+    const mixed dtVel = 0.5*dtPos; //0.5f*(stepSize.x+stepSize.y);
     const mixed scale = (mixed) 1.0/(mixed) 0x100000000;
     const mixed dtVelScaled = scale*dtVel;
 
@@ -137,13 +138,18 @@ extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
         delta.x = velocity.x*dtPos;
         delta.y = velocity.y*dtPos;
         delta.z = velocity.z*dtPos;
+        mixed4 pos = loadPos(posq, posqCorrection, index);
+        mixed4& saved = savedPos[index];
+        saved.x = pos.x + delta.x;
+        saved.y = pos.y + delta.y;
+        saved.z = pos.z + delta.z;
     }
 
     // Full-step integration of rigid body velocities, positions, and orientations
-    for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
-        bodyData& b = body[k];
-        forceAndTorque(paddedNumAtoms, numFree, posq, posqCorrection, force, atomIndex, scale, b);
-    }
+//    for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
+//        bodyData& b = body[k];
+//        forceAndTorque(paddedNumAtoms, numFree, posq, posqCorrection, force, atomIndex, scale, b);
+//    }
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -151,16 +157,19 @@ extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
 --------------------------------------------------------------------------------------------------*/
 
 extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
+                                                   int paddedNumAtoms,
                                                    mixed2* __restrict__ dt,
                                                    real4* __restrict__ posq,
                                                    real4* __restrict__ posqCorrection,
                                                    mixed4* __restrict__ velm,
-                                                   const mixed4* __restrict__ posDelta,
+                                                   const long long* __restrict__ force,
+                                                   mixed4* __restrict__ posDelta,
                                                    int numBodies,
                                                    int numFree,
                                                    bodyData* __restrict__ body,
                                                    const int* __restrict__ atomIndex,
-                                                   const mixed3* __restrict__ bodyFixedPos) {
+                                                   const mixed3* __restrict__ bodyFixedPos,
+                                                   mixed4* __restrict__ savedPos) {
     mixed2 stepSize = dt[0];
 #if __CUDA_ARCH__ >= 130
     double oneOverDt = 1.0/stepSize.y;
@@ -168,26 +177,75 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
     float oneOverDt = 1.0f/stepSize.y;
     float correction = (1.0f-oneOverDt*stepSize.y)/stepSize.y;
 #endif
-    int j = blockIdx.x*blockDim.x+threadIdx.x;
-    if (j == 0)
-        dt[0].x = stepSize.y;
-    for (; j < numFree; j += blockDim.x*gridDim.x) {
+    for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         int index = atomIndex[j];
-        mixed4 pos = loadPos(posq, posqCorrection, index);;
+        mixed4 pos = loadPos(posq, posqCorrection, index);
         const mixed4& delta = posDelta[index];
-        mixed4& velocity = velm[index];
         pos.x += delta.x;
         pos.y += delta.y;
         pos.z += delta.z;
-#if __CUDA_ARCH__ >= 130
-        velocity = make_mixed4((mixed) (delta.x*oneOverDt),
-                               (mixed) (delta.y*oneOverDt),
-                               (mixed) (delta.z*oneOverDt), velocity.w);
-#else
-        velocity = make_mixed4((mixed) (delta.x*oneOverDt+delta.x*correction),
-                               (mixed) (delta.y*oneOverDt+delta.y*correction),
-                               (mixed) (delta.z*oneOverDt+delta.z*correction), velocity.w);
-#endif
         storePos(posq, posqCorrection, index, pos);
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Perform the final step of Rigid Body integration.
+--------------------------------------------------------------------------------------------------*/
+
+extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
+                                                   int paddedNumAtoms,
+                                                   mixed2* __restrict__ dt,
+                                                   real4* __restrict__ posq,
+                                                   real4* __restrict__ posqCorrection,
+                                                   mixed4* __restrict__ velm,
+                                                   const long long* __restrict__ force,
+                                                   mixed4* __restrict__ posDelta,
+                                                   int numBodies,
+                                                   int numFree,
+                                                   bodyData* __restrict__ body,
+                                                   const int* __restrict__ atomIndex,
+                                                   const mixed3* __restrict__ bodyFixedPos,
+                                                   mixed4* __restrict__ savedPos) {
+    const mixed2 stepSize = dt[0];
+    const mixed dtPos = stepSize.y;
+    const mixed dtVel = 0.5*dtPos; //0.5f*(stepSize.x+stepSize.y);
+    const mixed scale = (mixed) 1.0/(mixed) 0x100000000;
+    const mixed dtVelScaled = scale*dtVel;
+
+//#if __CUDA_ARCH__ >= 130
+    double oneOverDt = 1.0/stepSize.y;
+//#else
+//    float oneOverDt = 1.0f/stepSize.y;
+//    float correction = (1.0f-oneOverDt*stepSize.y)/stepSize.y;
+//#endif
+//    for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
+//        int index = atomIndex[j];
+//        const mixed4& delta = posDelta[index];
+//        mixed4& velocity = velm[index];
+//#if __CUDA_ARCH__ >= 130
+//        velocity = make_mixed4((mixed) (delta.x*oneOverDt),
+//                               (mixed) (delta.y*oneOverDt),
+//                               (mixed) (delta.z*oneOverDt), velocity.w);
+//#else
+//        velocity = make_mixed4((mixed) (delta.x*oneOverDt+delta.x*correction),
+//                               (mixed) (delta.y*oneOverDt+delta.y*correction),
+//                               (mixed) (delta.z*oneOverDt+delta.z*correction), velocity.w);
+//#endif
+//    }
+
+    // Half-step integration of free-atom velocities, which are then synchronized with positions
+    // for constraint application
+    for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
+        int index = atomIndex[j];
+        mixed4 pos = loadPos(posq, posqCorrection, index);
+        mixed4& saved = savedPos[index];
+        mixed4& velocity = velm[index];
+        velocity.x += dtVelScaled*force[index]*velocity.w + (pos.x - saved.x)*oneOverDt;
+        velocity.y += dtVelScaled*force[index+paddedNumAtoms]*velocity.w + (pos.y - saved.y)*oneOverDt;
+        velocity.z += dtVelScaled*force[index+paddedNumAtoms*2]*velocity.w + (pos.z - saved.z)*oneOverDt;
+//        mixed4& delta = posDelta[index];
+//        delta.x = velocity.x*dtPos;
+//        delta.y = velocity.y*dtPos;
+//        delta.z = velocity.z*dtPos;
     }
 }

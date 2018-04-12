@@ -87,12 +87,13 @@ private:
     size_t getBodyDataSize(CUmodule& module);
 
     OpenMM::CudaContext& cu;
-    CUfunction kernel1, kernel2;
+    CUfunction kernel1, kernel2, kernel3;
     void* pinnedBuffer;
 
     OpenMM::CudaArray atomIndex;    // array of indices of free atoms and rigid-body atoms (*)
     OpenMM::CudaArray bodyData;     // array of rigid body data
     OpenMM::CudaArray bodyFixedPos; // array of body-fixed positions of rigid-body atoms
+    OpenMM::CudaArray savedPos;
     // (*) The first numFree indices must correspond to free atoms
 
     int numBodies;

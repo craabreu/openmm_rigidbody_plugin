@@ -92,6 +92,7 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system, const Ri
     CUmodule module = cu.createModule(CudaRigidBodyKernelSources::rigidbodyintegrator, defines, "");
     kernel1 = cu.getKernel(module, "integrateRigidBodyPart1");
     kernel2 = cu.getKernel(module, "integrateRigidBodyPart2");
+    kernel3 = cu.getKernel(module, "integrateRigidBodyPart3");
 
     size_t bodyDataSize = getBodyDataSize(module);
     bool mixedOrDouble = cu.getUseMixedPrecision() || cu.getUseDoublePrecision();
@@ -136,6 +137,15 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system, const Ri
         else
             bodyFixedPos.initialize<float3>(cu, paddedNumBodyAtoms, "bodyFixedPos");
     }
+
+    // Allocate array for saving positions:
+    if (mixedOrDouble)
+      savedPos.initialize<double4>(cu, cu.getPaddedNumAtoms(), "savedPos");
+    else
+      savedPos.initialize<float4>(cu, cu.getPaddedNumAtoms(), "savedPos");
+
+    double dt = integrator.getStepSize();
+    cu.getIntegrationUtilities().setNextStepSize(dt);
 }
 
 void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySystem) {
@@ -197,6 +207,26 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
 }
 
 void CudaIntegrateRigidBodyStepKernel::initialIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+    cu.setAsCurrent();
+    CudaIntegrationUtilities& integration = cu.getIntegrationUtilities();
+    int numAtoms = cu.getNumAtoms();
+    int paddedNumAtoms = cu.getPaddedNumAtoms();
+
+    // Call the first integration kernel.
+
+    CUdeviceptr posCorrection = (cu.getUseMixedPrecision() ? cu.getPosqCorrection().getDevicePointer() : 0);
+    void* args1[] = {&numAtoms, &paddedNumAtoms, &cu.getIntegrationUtilities().getStepSize().getDevicePointer(), &cu.getPosq().getDevicePointer(), &posCorrection,
+            &cu.getVelm().getDevicePointer(), &cu.getForce().getDevicePointer(), &integration.getPosDelta().getDevicePointer(),
+            &numBodies, &numFree, &bodyData.getDevicePointer(), &atomIndex.getDevicePointer(), &bodyFixedPos.getDevicePointer(), &savedPos.getDevicePointer()};
+    cu.executeKernel(kernel1, args1, numAtoms, 128);
+
+    // Apply constraints.
+
+    integration.applyConstraints(integrator.getConstraintTolerance());
+//    integration.applyVelocityConstraints(integrator.getConstraintTolerance());
+    cu.executeKernel(kernel2, args1, numAtoms, 128);
+//    integration.applyConstraints(integrator.getConstraintTolerance());
+    integration.computeVirtualSites();
 }
 
 void CudaIntegrateRigidBodyStepKernel::finalIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
@@ -204,37 +234,25 @@ void CudaIntegrateRigidBodyStepKernel::finalIntegrate(ContextImpl& context, cons
     CudaIntegrationUtilities& integration = cu.getIntegrationUtilities();
     int numAtoms = cu.getNumAtoms();
     int paddedNumAtoms = cu.getPaddedNumAtoms();
-    double dt = integrator.getStepSize();
-    cu.getIntegrationUtilities().setNextStepSize(dt);
 
     // Call the first integration kernel.
 
     CUdeviceptr posCorrection = (cu.getUseMixedPrecision() ? cu.getPosqCorrection().getDevicePointer() : 0);
-//    cout<<numFree<<"\n";
-    void* args1[] = {&numAtoms, &paddedNumAtoms, &cu.getIntegrationUtilities().getStepSize().getDevicePointer(), &cu.getPosq().getDevicePointer(), &posCorrection,
+    void* args2[] = {&numAtoms, &paddedNumAtoms, &cu.getIntegrationUtilities().getStepSize().getDevicePointer(), &cu.getPosq().getDevicePointer(), &posCorrection,
             &cu.getVelm().getDevicePointer(), &cu.getForce().getDevicePointer(), &integration.getPosDelta().getDevicePointer(),
-            &numBodies, &numFree, &bodyData.getDevicePointer(), &atomIndex.getDevicePointer(), &bodyFixedPos.getDevicePointer()};
-    cu.executeKernel(kernel1, args1, numAtoms, 128);
+            &numBodies, &numFree, &bodyData.getDevicePointer(), &atomIndex.getDevicePointer(), &bodyFixedPos.getDevicePointer(), &savedPos.getDevicePointer()};
+    cu.executeKernel(kernel3, args2, numAtoms, 128);
 
-    // Apply constraints.
-
-    integration.applyConstraints(integrator.getConstraintTolerance());
-
-    // Call the second integration kernel.
-
-    void* args2[] = {&numAtoms, &cu.getIntegrationUtilities().getStepSize().getDevicePointer(), &cu.getPosq().getDevicePointer(), &posCorrection,
-            &cu.getVelm().getDevicePointer(), &integration.getPosDelta().getDevicePointer(),
-            &numBodies, &numFree, &bodyData.getDevicePointer(), &atomIndex.getDevicePointer(), &bodyFixedPos.getDevicePointer()};
-    cu.executeKernel(kernel2, args2, numAtoms, 128);
-    integration.computeVirtualSites();
+    integration.applyVelocityConstraints(integrator.getConstraintTolerance());
 
     // Update the time and step count.
 
-    cu.setTime(cu.getTime()+dt);
+    cu.setTime(cu.getTime()+integrator.getStepSize());
     cu.setStepCount(cu.getStepCount()+1);
     cu.reorderAtoms();
+//    cout<<cu.getAtomsWereReordered()<<"\n";
 }
 
 double CudaIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator) {
-    return cu.getIntegrationUtilities().computeKineticEnergy(0.5*integrator.getStepSize());
+    return cu.getIntegrationUtilities().computeKineticEnergy(0.0);
 }
