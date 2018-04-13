@@ -60,19 +60,12 @@ public:
      */
     void uploadBodySystem(RigidBodySystem& bodySystem);
     /**
-     * Perform the initial part of the Verlet-type integration
+     * Execute the kernel.
      * 
      * @param context    the context in which to execute this kernel
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
-    void initialIntegrate(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
-    /**
-     * Perform the final part of the Verlet-type integration
-     * 
-     * @param context    the context in which to execute this kernel
-     * @param integrator the RigidBodyIntegrator this kernel is being used for
-     */
-    void finalIntegrate(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
+    void execute(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
     /**
      * Compute the kinetic energy.
      * 
@@ -85,15 +78,18 @@ private:
      * Determine the size of body data structure in Cuda kernels
      */
     size_t getBodyDataSize(CUmodule& module);
+    class ReorderListener;
+    ReorderListener* reorderListener;
 
     OpenMM::CudaContext& cu;
     CUfunction kernel1, kernel2, kernel3;
     void* pinnedBuffer;
 
-    OpenMM::CudaArray atomIndex;    // array of indices of free atoms and rigid-body atoms (*)
+    OpenMM::CudaArray atomLocation; // array of current locations of free and rigid-body atoms (*)
     OpenMM::CudaArray bodyData;     // array of rigid body data
     OpenMM::CudaArray bodyFixedPos; // array of body-fixed positions of rigid-body atoms
     OpenMM::CudaArray savedPos;
+    
     // (*) The first numFree indices must correspond to free atoms
 
     int numBodies;

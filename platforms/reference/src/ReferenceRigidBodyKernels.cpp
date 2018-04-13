@@ -108,7 +108,7 @@ void ReferenceIntegrateRigidBodyStepKernel::initialize(const System& system, con
         masses[i] = system.getParticleMass(i);
 }
 
-void ReferenceIntegrateRigidBodyStepKernel::initialIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+void ReferenceIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     double stepSize = integrator.getStepSize();
     vector<Vec3>& posData = extractPositions(context);
     vector<Vec3>& velData = extractVelocities(context);
@@ -125,9 +125,6 @@ void ReferenceIntegrateRigidBodyStepKernel::initialIntegrate(ContextImpl& contex
     dynamics->update(context.getSystem(), posData, velData, forceData, masses, integrator.getConstraintTolerance());
     data.time += stepSize;
     data.stepCount++;
-}
-
-void ReferenceIntegrateRigidBodyStepKernel::finalIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
 }
 
 double ReferenceIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator) {

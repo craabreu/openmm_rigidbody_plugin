@@ -70,6 +70,9 @@ typedef struct {
     double4 Ctau2; // quaternion-frame resultant torque
 } bodyDataDouble;
 
+/*--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------*/
+
 size_t CudaIntegrateRigidBodyStepKernel::getBodyDataSize(CUmodule& module) {
     CUfunction kernel = cu.getKernel(module, "getBodyDataSize");
     CUdeviceptr pointer;
@@ -85,7 +88,60 @@ size_t CudaIntegrateRigidBodyStepKernel::getBodyDataSize(CUmodule& module) {
     return bodyDataSize;
 }
 
-void CudaIntegrateRigidBodyStepKernel::initialize(const System& system, const RigidBodyIntegrator& integrator) {
+/*--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------*/
+
+class CudaIntegrateRigidBodyStepKernel::ReorderListener : public CudaContext::ReorderListener {
+public:
+    ReorderListener(CudaContext& cu, RigidBodySystem& bodySystem, CudaArray& atomLocation) :
+        cu(cu), bodySystem(bodySystem), atomLocation(atomLocation) {
+    }
+    void execute() {
+        int numActualAtoms = bodySystem.getNumActualAtoms();
+        int paddedNumAtoms = cu.getPaddedNumAtoms();
+        vector<int> location(atomLocation.getSize());
+        atomLocation.download(location);
+
+        long long* force = (long long*) cu.getPinnedBuffer();
+        cu.getForce().download(force);
+        vector<long long> F(3*numActualAtoms);
+        int k = 0;
+        for (int i = 0; i < numActualAtoms; i++) {
+            int loc = location[i];
+            F[k++] = force[loc];
+            F[k++] = force[loc+paddedNumAtoms];
+            F[k++] = force[loc+paddedNumAtoms*2];
+        }
+
+        const vector<int>& order = cu.getAtomIndex();
+        vector<int> invOrder(order.size());
+        for (int i = 0; i < order.size(); i++)
+            invOrder[order[i]] = i;
+        for (int i = 0; i < bodySystem.getNumActualAtoms(); i++)
+            location[i] = invOrder[bodySystem.getAtomIndex(i)];
+
+        k = 0;
+        for (int i = 0; i < numActualAtoms; i++) {
+            int loc = location[i];
+            force[loc] = F[k++];
+            force[loc+paddedNumAtoms] = F[k++];
+            force[loc+paddedNumAtoms*2] = F[k++];
+        }
+
+        atomLocation.upload(location);
+        cu.getForce().upload(force);
+    }
+private:
+    CudaContext& cu;
+    RigidBodySystem& bodySystem;
+    CudaArray& atomLocation;
+};
+
+/*--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------*/
+
+void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
+                                                  const RigidBodyIntegrator& integrator) {
     cu.getPlatformData().initializeContexts(system);
     cu.setAsCurrent();
     map<string, string> defines;
@@ -120,14 +176,21 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system, const Ri
                                   paddedNumBodyAtoms*bodyFixedPosSize));
     CUresult result = cuMemHostAlloc(&pinnedBuffer, pinnedBufferSize, 0);
     if (result != CUDA_SUCCESS)
-        throw OpenMMException("Error creating pinned buffer for rigid body integration");
+        throw OpenMMException("Error creating pinned buffer for rigid body integrator");
 
-    // Allocate and upload array of atom indices:
-    atomIndex.initialize<int>(cu, paddedNumActualAtoms, "atomIndex");
-    int* index = (int*) pinnedBuffer;
-    for (int i = 0; i < numActualAtoms; ++i)
-        index[i] = bodySystem->getAtomIndex(i);
-    atomIndex.upload(index);
+    // Allocate array of atom locations:
+    atomLocation.initialize<int>(cu, paddedNumActualAtoms, "atomLocation");
+    const vector<int>& order = cu.getAtomIndex();
+    vector<int> invOrder(order.size());
+    for (int i = 0; i < order.size(); i++)
+        invOrder[order[i]] = i;
+    int* location = (int*) pinnedBuffer;
+    for (int i = 0; i < numActualAtoms; i++)
+        location[i] = invOrder[bodySystem->getAtomIndex(i)];
+    atomLocation.upload(location);
+
+    reorderListener = new ReorderListener(cu, *bodySystem, atomLocation);
+    cu.addReorderListener(reorderListener);
 
     // Allocate arrays of body data and body-fixed atom positions, if necessary:
     if (numBodies != 0) {
@@ -139,17 +202,19 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system, const Ri
     }
 
     // Allocate array for saving positions:
+    int paddedNumFree = TileSize*((numFree + TileSize - 1)/TileSize);
     if (mixedOrDouble)
-      savedPos.initialize<double4>(cu, cu.getPaddedNumAtoms(), "savedPos");
+      savedPos.initialize<double4>(cu, paddedNumFree, "savedPos");
     else
-      savedPos.initialize<float4>(cu, cu.getPaddedNumAtoms(), "savedPos");
-
-    double dt = integrator.getStepSize();
-    cu.getIntegrationUtilities().setNextStepSize(dt);
+      savedPos.initialize<float4>(cu, paddedNumFree, "savedPos");
 }
+
+/*--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------*/
 
 void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySystem) {
     cu.setAsCurrent();
+
     int numBodies = bodySystem.getNumBodies();
     if (numBodies != 0) {
         int numBodyAtoms = bodySystem.getNumBodyAtoms();
@@ -172,7 +237,7 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
             bodyData.upload(data);
 
             double3* d = (double3*) pinnedBuffer;
-            for (int i = 0; i < numBodyAtoms; ++i) {
+            for (int i = 0; i < numBodyAtoms; i++) {
                 Vec3 x = bodySystem.getBodyFixedPosition(i);
                 d[i] = make_double3(x[0], x[1], x[2]);
             }
@@ -197,7 +262,7 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
             bodyData.upload(data);
 
             float3* d = (float3*) pinnedBuffer;
-            for (int i = 0; i < numBodyAtoms; ++i) {
+            for (int i = 0; i < numBodyAtoms; i++) {
                 Vec3 x = bodySystem.getBodyFixedPosition(i);
                 d[i] = make_float3((float)x[0], (float)x[1], (float)x[2]);
             }
@@ -206,42 +271,34 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
     }
 }
 
-void CudaIntegrateRigidBodyStepKernel::initialIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+/*--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------*/
+
+void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+    context.updateContextState();
     cu.setAsCurrent();
     CudaIntegrationUtilities& integration = cu.getIntegrationUtilities();
     int numAtoms = cu.getNumAtoms();
     int paddedNumAtoms = cu.getPaddedNumAtoms();
+    double dt = integrator.getStepSize();
 
     // Call the first integration kernel.
 
     CUdeviceptr posCorrection = (cu.getUseMixedPrecision() ? cu.getPosqCorrection().getDevicePointer() : 0);
-    void* args1[] = {&numAtoms, &paddedNumAtoms, &cu.getIntegrationUtilities().getStepSize().getDevicePointer(), &cu.getPosq().getDevicePointer(), &posCorrection,
+    void* args[] = {&numAtoms, &paddedNumAtoms, &dt, &cu.getPosq().getDevicePointer(), &posCorrection,
             &cu.getVelm().getDevicePointer(), &cu.getForce().getDevicePointer(), &integration.getPosDelta().getDevicePointer(),
-            &numBodies, &numFree, &bodyData.getDevicePointer(), &atomIndex.getDevicePointer(), &bodyFixedPos.getDevicePointer(), &savedPos.getDevicePointer()};
-    cu.executeKernel(kernel1, args1, numAtoms, 128);
+            &numBodies, &numFree, &bodyData.getDevicePointer(), &atomLocation.getDevicePointer(), &bodyFixedPos.getDevicePointer(), &savedPos.getDevicePointer()};
+    cu.executeKernel(kernel1, args, numAtoms, 128);
 
     // Apply constraints.
 
     integration.applyConstraints(integrator.getConstraintTolerance());
-//    integration.applyVelocityConstraints(integrator.getConstraintTolerance());
-    cu.executeKernel(kernel2, args1, numAtoms, 128);
-//    integration.applyConstraints(integrator.getConstraintTolerance());
+    cu.executeKernel(kernel2, args, numAtoms, 128);
     integration.computeVirtualSites();
-}
 
-void CudaIntegrateRigidBodyStepKernel::finalIntegrate(ContextImpl& context, const RigidBodyIntegrator& integrator) {
-    cu.setAsCurrent();
-    CudaIntegrationUtilities& integration = cu.getIntegrationUtilities();
-    int numAtoms = cu.getNumAtoms();
-    int paddedNumAtoms = cu.getPaddedNumAtoms();
+    context.calcForcesAndEnergy(true, false);
 
-    // Call the first integration kernel.
-
-    CUdeviceptr posCorrection = (cu.getUseMixedPrecision() ? cu.getPosqCorrection().getDevicePointer() : 0);
-    void* args2[] = {&numAtoms, &paddedNumAtoms, &cu.getIntegrationUtilities().getStepSize().getDevicePointer(), &cu.getPosq().getDevicePointer(), &posCorrection,
-            &cu.getVelm().getDevicePointer(), &cu.getForce().getDevicePointer(), &integration.getPosDelta().getDevicePointer(),
-            &numBodies, &numFree, &bodyData.getDevicePointer(), &atomIndex.getDevicePointer(), &bodyFixedPos.getDevicePointer(), &savedPos.getDevicePointer()};
-    cu.executeKernel(kernel3, args2, numAtoms, 128);
+    cu.executeKernel(kernel3, args, numAtoms, 128);
 
     integration.applyVelocityConstraints(integrator.getConstraintTolerance());
 
@@ -250,8 +307,10 @@ void CudaIntegrateRigidBodyStepKernel::finalIntegrate(ContextImpl& context, cons
     cu.setTime(cu.getTime()+integrator.getStepSize());
     cu.setStepCount(cu.getStepCount()+1);
     cu.reorderAtoms();
-//    cout<<cu.getAtomsWereReordered()<<"\n";
 }
+
+/*--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------*/
 
 double CudaIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     return cu.getIntegrationUtilities().computeKineticEnergy(0.0);

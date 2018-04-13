@@ -64,19 +64,12 @@ public:
      */
     virtual void uploadBodySystem(RigidBodySystem& bodySystem) = 0;
     /**
-     * Perform the initial part of the Verlet-type integration
+     * Execute the kernel.
      * 
      * @param context    the context in which to execute this kernel
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
-    virtual void initialIntegrate(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator) = 0;
-    /**
-     * Perform the final part of the Verlet-type integration
-     * 
-     * @param context    the context in which to execute this kernel
-     * @param integrator the RigidBodyIntegrator this kernel is being used for
-     */
-    virtual void finalIntegrate(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator) = 0;
+    virtual void execute(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator) = 0;
     /**
      * Compute the kinetic energy.
      * 
