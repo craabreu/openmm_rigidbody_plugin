@@ -108,14 +108,14 @@ inline __device__ void forceAndTorque(int paddedNumAtoms,
 
 extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
                                                    int paddedNumAtoms,
+                                                   int numFree,
+                                                   int numBodies,
                                                    const mixed dt,
                                                    real4* __restrict__ posq,
                                                    real4* __restrict__ posqCorrection,
                                                    mixed4* __restrict__ velm,
                                                    const long long* __restrict__ force,
                                                    mixed4* __restrict__ posDelta,
-                                                   int numBodies,
-                                                   int numFree,
                                                    bodyData* __restrict__ body,
                                                    const int* __restrict__ atomLocation,
                                                    const mixed3* __restrict__ bodyFixedPos,
@@ -142,6 +142,26 @@ extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
             saved.z = pos.z + delta.z;
         }
     }
+
+//    for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numBodies; j += blockDim.x*gridDim.x) {
+//        int index = atomLocation[j];
+//        mixed4& velocity = velm[index];
+//        if (velocity.w != (mixed)0.0) {
+//            velocity.x += dtVelScaled*force[index]*velocity.w;
+//            velocity.y += dtVelScaled*force[index+paddedNumAtoms]*velocity.w;
+//            velocity.z += dtVelScaled*force[index+paddedNumAtoms*2]*velocity.w;
+//            mixed4& delta = posDelta[index];
+//            delta.x = velocity.x*dt;
+//            delta.y = velocity.y*dt;
+//            delta.z = velocity.z*dt;
+//            mixed4 pos = loadPos(posq, posqCorrection, index);
+//            mixed4& saved = savedPos[j];
+//            saved.x = pos.x + delta.x;
+//            saved.y = pos.y + delta.y;
+//            saved.z = pos.z + delta.z;
+//        }
+//    }
+
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -150,14 +170,14 @@ extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
 
 extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
                                                    int paddedNumAtoms,
+                                                   int numFree,
+                                                   int numBodies,
                                                    const mixed dt,
                                                    real4* __restrict__ posq,
                                                    real4* __restrict__ posqCorrection,
                                                    mixed4* __restrict__ velm,
                                                    const long long* __restrict__ force,
                                                    mixed4* __restrict__ posDelta,
-                                                   int numBodies,
-                                                   int numFree,
                                                    bodyData* __restrict__ body,
                                                    const int* __restrict__ atomLocation,
                                                    const mixed3* __restrict__ bodyFixedPos,
@@ -183,14 +203,14 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
 
 extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
                                                    int paddedNumAtoms,
+                                                   int numFree,
+                                                   int numBodies,
                                                    const mixed dt,
                                                    real4* __restrict__ posq,
                                                    real4* __restrict__ posqCorrection,
                                                    mixed4* __restrict__ velm,
                                                    const long long* __restrict__ force,
                                                    mixed4* __restrict__ posDelta,
-                                                   int numBodies,
-                                                   int numFree,
                                                    bodyData* __restrict__ body,
                                                    const int* __restrict__ atomLocation,
                                                    const mixed3* __restrict__ bodyFixedPos,

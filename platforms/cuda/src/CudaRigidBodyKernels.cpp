@@ -145,7 +145,9 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
     cu.getPlatformData().initializeContexts(system);
     cu.setAsCurrent();
     map<string, string> defines;
-    CUmodule module = cu.createModule(CudaRigidBodyKernelSources::rigidbodyintegrator, defines, "");
+    CUmodule module = cu.createModule(CudaRigidBodyKernelSources::vectorOps +
+                                      CudaRigidBodyKernelSources::rigidbodyintegrator,
+                                      defines, "");
     kernel1 = cu.getKernel(module, "integrateRigidBodyPart1");
     kernel2 = cu.getKernel(module, "integrateRigidBodyPart2");
     kernel3 = cu.getKernel(module, "integrateRigidBodyPart3");
@@ -156,7 +158,7 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
         throw OpenMMException("Error in size of memory chunk allocated for body data");
     else if (!mixedOrDouble && bodyDataSize != sizeof(bodyDataFloat))
         throw OpenMMException("Error in size of memory chunk allocated for body data");
-    
+
     RigidBodySystem* bodySystem = integrator.getRigidBodySystem();
     numBodies = bodySystem->getNumBodies();
     numFree = bodySystem->getNumFree();
@@ -171,8 +173,8 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
 
     // Create pinned buffer for fast memory transfer:
     size_t bodyFixedPosSize = mixedOrDouble ? sizeof(double3) : sizeof(float3);
-    size_t pinnedBufferSize = max(paddedNumBodies*bodyDataSize, max(
-                                  paddedNumActualAtoms*sizeof(int),
+    size_t pinnedBufferSize = max(paddedNumBodies*bodyDataSize,
+                              max(paddedNumActualAtoms*sizeof(int),
                                   paddedNumBodyAtoms*bodyFixedPosSize));
     CUresult result = cuMemHostAlloc(&pinnedBuffer, pinnedBufferSize, 0);
     if (result != CUDA_SUCCESS)
@@ -280,14 +282,25 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const Rigid
     CudaIntegrationUtilities& integration = cu.getIntegrationUtilities();
     int numAtoms = cu.getNumAtoms();
     int paddedNumAtoms = cu.getPaddedNumAtoms();
-    double dt = integrator.getStepSize();
+    double timeStepDouble = integrator.getStepSize();
+    float timeStepFloat = (float)timeStepDouble;
+    bool useDouble = cu.getUseDoublePrecision() || cu.getUseMixedPrecision();
 
     // Call the first integration kernel.
 
     CUdeviceptr posCorrection = (cu.getUseMixedPrecision() ? cu.getPosqCorrection().getDevicePointer() : 0);
-    void* args[] = {&numAtoms, &paddedNumAtoms, &dt, &cu.getPosq().getDevicePointer(), &posCorrection,
-            &cu.getVelm().getDevicePointer(), &cu.getForce().getDevicePointer(), &integration.getPosDelta().getDevicePointer(),
-            &numBodies, &numFree, &bodyData.getDevicePointer(), &atomLocation.getDevicePointer(), &bodyFixedPos.getDevicePointer(), &savedPos.getDevicePointer()};
+    void* args[] = {&numAtoms, &paddedNumAtoms, &numFree, &numBodies,
+                    useDouble ? (void*) &timeStepDouble : (void*) &timeStepFloat,
+                    &cu.getPosq().getDevicePointer(),
+                    &posCorrection,
+                    &cu.getVelm().getDevicePointer(),
+                    &cu.getForce().getDevicePointer(),
+                    &integration.getPosDelta().getDevicePointer(),
+                    &bodyData.getDevicePointer(),
+                    &atomLocation.getDevicePointer(),
+                    &bodyFixedPos.getDevicePointer(),
+                    &savedPos.getDevicePointer()};
+
     cu.executeKernel(kernel1, args, numAtoms, 128);
 
     // Apply constraints.
@@ -306,7 +319,7 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const Rigid
 
     cu.setTime(cu.getTime()+integrator.getStepSize());
     cu.setStepCount(cu.getStepCount()+1);
-    cu.reorderAtoms();
+//    cu.reorderAtoms();
 }
 
 /*--------------------------------------------------------------------------------------------------
