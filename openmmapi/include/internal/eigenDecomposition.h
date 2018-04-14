@@ -25,6 +25,7 @@
 using namespace OpenMM;
 using namespace RigidBodyPlugin;
 
-void eigenDecomposition(const Mat3& A, Mat3& Q, Vec3& w);
+Vec3 eigenvalues(Mat3 a);
+Mat3 eigenvectors(Mat3 A, Vec3& w);
 
 #endif

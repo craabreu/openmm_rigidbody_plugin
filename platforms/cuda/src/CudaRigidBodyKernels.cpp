@@ -54,7 +54,7 @@ typedef struct {
     float3 F;     // resultant force
     float4 q;     // orientation quaternion
     float4 pi;    // quaternion-conjugated momentum
-    float4 Ctau2; // quaternion-frame resultant torque
+    float4 Ctau;  // quaternion-frame resultant torque
 } bodyDataFloat;
 
 typedef struct {
@@ -67,7 +67,7 @@ typedef struct {
     double3 F;     // resultant force
     double4 q;     // orientation quaternion
     double4 pi;    // quaternion-conjugated momentum
-    double4 Ctau2; // quaternion-frame resultant torque
+    double4 Ctau;  // quaternion-frame resultant torque
 } bodyDataDouble;
 
 /*--------------------------------------------------------------------------------------------------
@@ -234,7 +234,7 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 body.F = make_double3(b.force[0], b.force[1], b.force[2]);
                 body.q = make_double4(b.q[0], b.q[1], b.q[2], b.q[3]);
                 body.pi = make_double4(b.pi[0], b.pi[1], b.pi[2], b.pi[3]);
-                body.Ctau2 = make_double4(b.torque[0], b.torque[1], b.torque[2], b.torque[3]);
+                body.Ctau = make_double4(b.torque[0], b.torque[1], b.torque[2], b.torque[3]);
             }
             bodyData.upload(data);
 
@@ -259,7 +259,7 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 body.F = make_float3((float)b.force[0], (float)b.force[1], (float)b.force[2]);
                 body.q = make_float4((float)b.q[0], (float)b.q[1], (float)b.q[2], (float)b.q[3]);
                 body.pi = make_float4((float)b.pi[0], (float)b.pi[1], (float)b.pi[2], (float)b.pi[3]);
-                body.Ctau2 = make_float4((float)b.torque[0], (float)b.torque[1], (float)b.torque[2], (float)b.torque[3]);
+                body.Ctau = make_float4((float)b.torque[0], (float)b.torque[1], (float)b.torque[2], (float)b.torque[3]);
             }
             bodyData.upload(data);
 
@@ -319,7 +319,7 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const Rigid
 
     cu.setTime(cu.getTime()+integrator.getStepSize());
     cu.setStepCount(cu.getStepCount()+1);
-//    cu.reorderAtoms();
+    cu.reorderAtoms();
 }
 
 /*--------------------------------------------------------------------------------------------------

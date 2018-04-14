@@ -34,7 +34,7 @@ Vec3 Mat3::operator[](int index) const {
 
 // Extract the diagonal
 Vec3 Mat3::diag() const {
-    return Vec3(row[1][1], row[2][2], row[3][3]);
+    return Vec3(row[0][0], row[1][1], row[2][2]);
 }
 
 // Assign row from Vec3
@@ -90,6 +90,15 @@ Mat3 Mat3::operator-(const Mat3& rhs) const {
     return Mat3(lhs[0] - rhs[0], lhs[1] - rhs[1], lhs[2] - rhs[2]);
 }
 
+Mat3 Mat3::operator-(const Diag3& rhs) const {
+    Mat3 a = *this;
+    Vec3 b = rhs.diag();
+    a[0][0] -= b[0];
+    a[1][1] -= b[1];
+    a[2][2] -= b[2];
+    return a;
+}
+
 // Minus equal
 Mat3& Mat3::operator-=(const Mat3& rhs) {
     row[0] -= rhs[0];
@@ -126,6 +135,32 @@ Mat3& Mat3::operator/=(double rhs) {
     row[1] *= scale;
     row[2] *= scale;
     return *this;
+}
+
+// Symmetrization
+Mat3 Mat3::symmetric() const {
+    Mat3 a = *this;
+    a[1][0] = a[0][1];
+    a[2][0] = a[0][2];
+    a[2][1] = a[1][2];
+    return a;
+}
+
+// Trace
+double Mat3::trace() const {
+    const Mat3& lhs = *this;
+    return lhs[0][0] + lhs[1][1] + lhs[2][2];
+}
+
+// Determinant
+double Mat3::det() const {
+    const Mat3& lhs = *this;
+    const Vec3& a0 = lhs.row[0];
+    const Vec3& a1 = lhs.row[1];
+    const Vec3& a2 = lhs.row[2];
+    return a0[0]*(a1[1]*a2[2] - a2[1]*a1[2]) -
+           a0[1]*(a1[0]*a2[2] - a2[0]*a1[2]) +
+           a0[2]*(a1[0]*a2[1] - a2[0]*a1[1]);
 }
 
 // Transposition
@@ -436,6 +471,11 @@ Quat& Quat::operator/=(double rhs) {
 double Quat::dot(const Quat& rhs) const {
     const Quat& lhs = *this;
     return lhs[0]*rhs[0] + lhs[1]*rhs[1] + lhs[2]*rhs[2] + lhs[3]*rhs[3];
+}
+
+double Quat::norm() const {
+    const Quat& lhs = *this;
+    return sqrt(lhs.dot(lhs));
 }
 
 // Location of maximum component

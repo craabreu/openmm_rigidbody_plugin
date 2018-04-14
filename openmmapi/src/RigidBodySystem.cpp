@@ -83,9 +83,9 @@ void RigidBody::updateGeometry(vector<Vec3>& R, vector<Vec3>& F, vector<double>&
         d2[j] = delta[j].dot(delta[j]);
     }
 
-    // Principal moments of inertia and inverse rotation matrix
+    // Principal moments of inertia and rotation matrix
     Vec3 u;
-    Mat3 At;
+    Mat3 A;
     if (collinear(delta, d2, u)) {
         double I = 0.0;
         for (int j = 0; j < N; j++)
@@ -93,20 +93,20 @@ void RigidBody::updateGeometry(vector<Vec3>& R, vector<Vec3>& F, vector<double>&
         MoI = Vec3(I, I, 0.0);
         invMoI = Vec3(1.0/I, 1.0/I, 0.0);
         Vec3 v = orthonormal(u);
-        At = Mat3(v, v.cross(u), u);
+        A = Mat3(v, u.cross(v), u).t();
         dof = 5;
     }
     else {
         Mat3 inertia;
         for (int j = 0; j < N; j++)
             inertia += Projection(delta[j])*M[atom[j]];
-        eigenDecomposition(inertia, At, MoI);
+        MoI = eigenvalues(inertia);
         invMoI = Vec3(1.0/MoI[0], 1.0/MoI[1], 1.0/MoI[2]);
+        A = eigenvectors(inertia, MoI);
         dof = 6;
     }
 
-    // Rotation matrix
-    Mat3 A = At.t();
+    // Orientational quaternion
     q = Quat(A);
 
     // Atom positions in the body-fixed frame of reference
@@ -121,7 +121,7 @@ void RigidBody::updateGeometry(vector<Vec3>& R, vector<Vec3>& F, vector<double>&
         force += F[i];
         tau += delta[j].cross(F[i]);
     }
-    torque = q.C(tau)*2.0;
+    torque = q.C(tau);
 }
 
 /*--------------------------------------------------------------------------------------------------

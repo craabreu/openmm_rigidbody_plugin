@@ -38,11 +38,15 @@ public:
     Mat3& operator+=(const Mat3& rhs);
     Mat3 operator-() const;
     Mat3 operator-(const Mat3& rhs) const;
+    Mat3 operator-(const Diag3& rhs) const;
     Mat3& operator-=(const Mat3& rhs);
     Mat3 operator*(double rhs) const;
     Mat3& operator*=(double rhs);
     Mat3 operator/(double rhs) const;
     Mat3& operator/=(double rhs);
+    Mat3 symmetric() const;
+    double trace() const;
+    double det() const;
     Mat3 t() const;
     Vec3 operator*(const Vec3& rhs) const;
     Mat3 operator*(const Mat3& rhs) const;
@@ -106,6 +110,7 @@ public:
     Quat operator/(double rhs) const;
     Quat& operator/=(double rhs);
     double dot(const Quat& rhs) const;
+    double norm() const;
     int maxloc() const;
     Quat B(Vec3 x) const;
     Quat C(Vec3 x) const;
