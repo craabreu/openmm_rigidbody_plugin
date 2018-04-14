@@ -1,3 +1,7 @@
+#define zero ((mixed)0.0)
+#define half ((mixed)0.5)
+#define one  ((mixed)1.0)
+
 /*--------------------------------------------------------------------------------------------------
   Define struct for rigid body data.
 --------------------------------------------------------------------------------------------------*/
@@ -5,8 +9,8 @@
 extern "C" typedef struct {
     int    N;     // number of atoms
     int    loc;   // pointer to set of atoms
-    mixed3 I;     // principal moments of inertia
-    mixed  m;     // mass
+    mixed  invm;  // mass
+    mixed3 invI;  // principal moments of inertia
     mixed3 r;     // center-of-mass position
     mixed3 F;     // resultant force
     mixed3 p;     // center-of-mass momentum
@@ -94,6 +98,53 @@ inline __device__ mixed3 multiplyCt(mixed4 q, mixed4 v) {
 }
 
 /*--------------------------------------------------------------------------------------------------
+  Uniaxial rotation
+--------------------------------------------------------------------------------------------------*/
+
+inline __device__ void uniaxialRotation(BodyData& body, mixed dtBy4, int axis) {
+    mixed4& q = body.q;
+    mixed4& p = body.pi;
+    mixed4 Bq, Bp;
+    mixed invMoI;
+    if (axis == 0) {
+        Bq = make_mixed4(-q.y,  q.x,  q.w, -q.z);
+        Bp = make_mixed4(-p.y,  p.x,  p.w, -p.z);
+        invMoI = body.invI.x;
+    }
+    else if (axis == 1) {
+        Bq = make_mixed4(-q.z, -q.w,  q.x,  q.y);
+        Bp = make_mixed4(-p.z, -p.w,  p.x,  p.y);
+        invMoI = body.invI.y;
+    }
+    else {
+        Bq = make_mixed4(-q.w,  q.z, -q.y,  q.x);
+        Bp = make_mixed4(-p.w,  p.z, -p.y,  p.x);
+        invMoI = body.invI.z;
+    }
+    mixed omegaDtBy2 = dot(p, Bq)*dtBy4*invMoI;
+    mixed vsin = sin(omegaDtBy2);
+    mixed vcos = cos(omegaDtBy2);
+    q = q*vcos + Bq*vsin;
+    p = p*vcos + Bp*vsin;
+}
+
+/*--------------------------------------------------------------------------------------------------
+  NO_SQUISH rotation
+--------------------------------------------------------------------------------------------------*/
+
+inline __device__ void noSquishRotation(BodyData& body, mixed dt, int n) {
+    mixed dtBy8n = dt/(8.0*n);
+    mixed dtBy4n = 2.0*dtBy8n;
+    for (int i = 0; i < n; i++) {
+        uniaxialRotation(body, dtBy8n, 3);
+        uniaxialRotation(body, dtBy8n, 2);
+        uniaxialRotation(body, dtBy4n, 1);
+        uniaxialRotation(body, dtBy8n, 2);
+        uniaxialRotation(body, dtBy8n, 3);
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
   Perform the initial step of Rigid Body integration.
 --------------------------------------------------------------------------------------------------*/
 
@@ -112,29 +163,19 @@ extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
                                                    const mixed3* __restrict__ bodyFixedPos,
                                                    mixed3* __restrict__ savedPos) {
 
-    const mixed scale = (mixed)1.0/(mixed)0x100000000;
-    const mixed dtVel = (mixed)0.5*dt;
-    const mixed dtVelScaled = scale*dtVel;
+    const mixed scale = one/(mixed)0x100000000;
+    const mixed halfDt = half*dt;
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         int i = atomLocation[j];
         mixed4& velocity = velm[i];
-        if (velocity.w != (mixed)0.0) {
-            velocity.x += dtVelScaled*force[i]*velocity.w;
-            velocity.y += dtVelScaled*force[i+stride]*velocity.w;
-            velocity.z += dtVelScaled*force[i+stride*2]*velocity.w;
-            mixed4& delta = posDelta[i];
-            delta.x = velocity.x*dt;
-            delta.y = velocity.y*dt;
-            delta.z = velocity.z*dt;
-            mixed3 pos = loadPos(posq, posqCorrection, i);
-            savedPos[j] = pos + trimTo3(delta);
+        if (velocity.w != zero) {
+            mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
+            mixed3 v = trimTo3(velocity) + halfDt*velocity.w*f;
+            mixed3 delta = v*dt;
+            velocity = growTo4(v, velocity.w);
+            posDelta[i] = growTo4(delta, 0.0);
+            savedPos[j] = loadPos(posq, posqCorrection, i) + delta;
         }
-    }
-
-    for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numBodies; j += blockDim.x*gridDim.x) {
-        BodyData &body = bodyData[j];
-        body.p += body.F*dtVel/body.m;
-        body.r += body.p*dt;
     }
 }
 
@@ -159,22 +200,25 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
 
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         int index = atomLocation[j];
-        if (velm[index].w != (mixed)0.0) {
-            mixed3 pos = loadPos(posq, posqCorrection, index);
-            mixed4& delta = posDelta[index];
-            pos.x += delta.x;
-            pos.y += delta.y;
-            pos.z += delta.z;
+        if (velm[index].w != zero) {
+            mixed3 pos = loadPos(posq, posqCorrection, index) + trimTo3(posDelta[index]);
             storePos(posq, posqCorrection, index, pos);
         }
     }
 
+    const mixed halfDt = half*dt;
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
         BodyData &body = bodyData[k];
+        body.p += body.F*halfDt;
+        body.pi += body.Ctau*dt;
+        body.r += body.p*(dt*body.invm);
+        noSquishRotation(body, dt, 1);
         int loc = body.loc;
         for (int j = 0; j < body.N; j++) {
-            mixed3 pos = body.r + multiplyCt(body.q, multiplyB(body.q, bodyFixedPos[loc]));
-//            storePos(posq, posqCorrection, atomLocation[numFree + loc], pos);
+            int i = atomLocation[numFree + loc];
+            mixed3 delta = multiplyCt(body.q, multiplyB(body.q, bodyFixedPos[loc]));
+            posDelta[i] = growTo4(delta, 0.0);
+//            storePos(posq, posqCorrection, i, body.r + delta);
             loc++;
         }
     }
@@ -199,20 +243,18 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
                                                    const mixed3* __restrict__ bodyFixedPos,
                                                    mixed3* __restrict__ savedPos) {
 
-    const mixed scale = (mixed)1.0/(mixed)0x100000000;
-    const mixed dtVel = (mixed)0.5*dt;
-    const mixed dtVelScaled = scale*dtVel;
-    const mixed invDt = (mixed)1.0/dt;
+    const mixed scale = one/(mixed)0x100000000;
+    const mixed halfDt = half*dt;
+    const mixed halfDtScaled = scale*halfDt;
+    const mixed invDt = one/dt;
 
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         int i = atomLocation[j];
         mixed4& velocity = velm[i];
-        if (velocity.w != (mixed)0.0) {
-            mixed3 pos = loadPos(posq, posqCorrection, i);
-            mixed3& saved = savedPos[j];
-            velocity.x += dtVelScaled*force[i]*velocity.w + (pos.x - saved.x)*invDt;
-            velocity.y += dtVelScaled*force[i+stride]*velocity.w + (pos.y - saved.y)*invDt;
-            velocity.z += dtVelScaled*force[i+stride*2]*velocity.w + (pos.z - saved.z)*invDt;
+        if (velocity.w != zero) {
+            mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
+            mixed3 v = trimTo3(velocity) + halfDt*velocity.w*f;
+            velocity = growTo4(v, velocity.w);
         }
     }
 
@@ -223,12 +265,25 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
         int loc = numFree + body.loc;
         for (int j = 0; j < body.N; j++) {
             int i = atomLocation[loc++];
-            const mixed3 delta = loadPos(posq, posqCorrection, i) - body.r;
-            const mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
+            mixed3 delta = trimTo3(posDelta[i]);
+            mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
             body.F += f;
             tau += cross(delta, f);
         }
-        body.Ctau = multiplyC(body.q, tau*2.0);
-        body.p += body.F*(dtVel/body.m);
+        body.Ctau = multiplyC(body.q, tau);
+
+        body.p += body.F*halfDt;
+        body.pi += body.Ctau*dt;
+
+        mixed3 omega = (body.invI*multiplyBt(body.q, body.pi))*half;
+        mixed3 vcm = body.p*body.invm;
+        mixed3 spaceFixedOmega = multiplyCt(body.q, multiplyB(body.q, omega));
+        loc = numFree + body.loc;
+        for (int j = 0; j < body.N; j++) {
+            int i = atomLocation[loc++];
+            mixed4& velocity = velm[i];
+            mixed3 delta = trimTo3(posDelta[i]);
+//            velocity = growTo4(vcm + cross(spaceFixedOmega, delta), velocity.w);
+        }
     }
 }

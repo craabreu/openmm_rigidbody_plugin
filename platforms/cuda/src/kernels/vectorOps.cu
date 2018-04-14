@@ -548,6 +548,14 @@ inline __device__ double dot(double3 a, double3 b) {
     return a.x*b.x+a.y*b.y+a.z*b.z;
 }
 
+inline __device__ float dot(float4 a, float4 b) {
+    return a.x*b.x+a.y*b.y+a.z*b.z+a.w*b.w;
+}
+
+inline __device__ double dot(double4 a, double4 b) {
+    return a.x*b.x+a.y*b.y+a.z*b.z+a.w*b.w;
+}
+
 // Cross product
 
 inline __device__ float3 cross(float3 a, float3 b) {
@@ -600,4 +608,14 @@ inline __device__ float3 trimTo3(float4 v) {
 
 inline __device__ double3 trimTo3(double4 v) {
     return make_double3(v.x, v.y, v.z);
+}
+
+// Add fourth component to a vector.
+
+inline __device__ float4 growTo4(float3 v, float a) {
+    return make_float4(v.x, v.y, v.z, a);
+}
+
+inline __device__ double4 growTo4(double3 v, double a) {
+    return make_double4(v.x, v.y, v.z, a);
 }

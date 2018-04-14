@@ -47,8 +47,8 @@ using namespace std;
 typedef struct {
     int    N;     // number of atoms
     int    loc;   // pointer to set of atoms
-    float  m;     // mass
-    float3 I;     // principal moments of inertia
+    float  invm;  // mass
+    float3 invI;  // principal moments of inertia
     float3 r;     // center-of-mass position
     float3 p;     // center-of-mass momentum
     float3 F;     // resultant force
@@ -60,8 +60,8 @@ typedef struct {
 typedef struct {
     int     N;     // number of atoms
     int     loc;   // pointer to set of atoms
-    double  m;     // mass
-    double3 I;     // principal moments of inertia
+    double  invm;  // mass
+    double3 invI;  // principal moments of inertia
     double3 r;     // center-of-mass position
     double3 p;     // center-of-mass momentum
     double3 F;     // resultant force
@@ -227,8 +227,8 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 bodyDataDouble& body = data[i];
                 body.N = b.N;
                 body.loc = b.loc;
-                body.m = b.mass;
-                body.I = make_double3(b.MoI[0], b.MoI[1], b.MoI[2]);
+                body.invm = 1.0/b.mass;
+                body.invI = make_double3(1.0/b.MoI[0], 1.0/b.MoI[1], 1.0/b.MoI[2]);
                 body.r = make_double3(b.rcm[0], b.rcm[1], b.rcm[2]);
                 body.p = make_double3(b.pcm[0], b.pcm[1], b.pcm[2]);
                 body.F = make_double3(b.force[0], b.force[1], b.force[2]);
@@ -252,21 +252,21 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 bodyDataFloat& body = data[i];
                 body.N = b.N;
                 body.loc = b.loc;
-                body.m = (float)b.mass;
-                body.I = make_float3((float)b.MoI[0], (float)b.MoI[1], (float)b.MoI[2]);
-                body.r = make_float3((float)b.rcm[0], (float)b.rcm[1], (float)b.rcm[2]);
-                body.p = make_float3((float)b.pcm[0], (float)b.pcm[1], (float)b.pcm[2]);
-                body.F = make_float3((float)b.force[0], (float)b.force[1], (float)b.force[2]);
-                body.q = make_float4((float)b.q[0], (float)b.q[1], (float)b.q[2], (float)b.q[3]);
-                body.pi = make_float4((float)b.pi[0], (float)b.pi[1], (float)b.pi[2], (float)b.pi[3]);
-                body.Ctau = make_float4((float)b.torque[0], (float)b.torque[1], (float)b.torque[2], (float)b.torque[3]);
+                body.invm = (float)(1.0/b.mass);
+                body.invI = make_float3(1.0/b.MoI[0], 1.0/b.MoI[1], 1.0/b.MoI[2]);
+                body.r = make_float3(b.rcm[0], b.rcm[1], b.rcm[2]);
+                body.p = make_float3(b.pcm[0], b.pcm[1], b.pcm[2]);
+                body.F = make_float3(b.force[0], b.force[1], b.force[2]);
+                body.q = make_float4(b.q[0], b.q[1], b.q[2], b.q[3]);
+                body.pi = make_float4(b.pi[0], b.pi[1], b.pi[2], b.pi[3]);
+                body.Ctau = make_float4(b.torque[0], b.torque[1], b.torque[2], b.torque[3]);
             }
             bodyData.upload(data);
 
             float3* d = (float3*) pinnedBuffer;
             for (int i = 0; i < numBodyAtoms; i++) {
                 Vec3 x = bodySystem.getBodyFixedPosition(i);
-                d[i] = make_float3((float)x[0], (float)x[1], (float)x[2]);
+                d[i] = make_float3(x[0], x[1], x[2]);
             }
             bodyFixedPos.upload(d);
         }

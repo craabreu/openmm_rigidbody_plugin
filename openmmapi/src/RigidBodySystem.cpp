@@ -73,7 +73,6 @@ void RigidBody::updateGeometry(vector<Vec3>& R, vector<Vec3>& F, vector<double>&
         rcm += R[i]*M[i];
     }
     rcm /= mass;
-    invMass = 1.0/mass;
 
     // Center-of-mass displacements
     vector<Vec3> delta(N);
@@ -91,7 +90,6 @@ void RigidBody::updateGeometry(vector<Vec3>& R, vector<Vec3>& F, vector<double>&
         for (int j = 0; j < N; j++)
             I += M[atom[j]]*d2[j];
         MoI = Vec3(I, I, 0.0);
-        invMoI = Vec3(1.0/I, 1.0/I, 0.0);
         Vec3 v = orthonormal(u);
         A = Mat3(v, u.cross(v), u).t();
         dof = 5;
@@ -101,7 +99,6 @@ void RigidBody::updateGeometry(vector<Vec3>& R, vector<Vec3>& F, vector<double>&
         for (int j = 0; j < N; j++)
             inertia += Projection(delta[j])*M[atom[j]];
         MoI = eigenvalues(inertia);
-        invMoI = Vec3(1.0/MoI[0], 1.0/MoI[1], 1.0/MoI[2]);
         A = eigenvectors(inertia, MoI);
         dof = 6;
     }
