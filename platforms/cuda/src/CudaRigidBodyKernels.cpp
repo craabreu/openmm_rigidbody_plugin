@@ -206,9 +206,9 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
     // Allocate array for saving positions:
     int paddedNumFree = TileSize*((numFree + TileSize - 1)/TileSize);
     if (mixedOrDouble)
-      savedPos.initialize<double4>(cu, paddedNumFree, "savedPos");
+      savedPos.initialize<double3>(cu, paddedNumFree, "savedPos");
     else
-      savedPos.initialize<float4>(cu, paddedNumFree, "savedPos");
+      savedPos.initialize<float3>(cu, paddedNumFree, "savedPos");
 }
 
 /*--------------------------------------------------------------------------------------------------
