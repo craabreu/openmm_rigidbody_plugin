@@ -74,21 +74,25 @@ public:
      */
     double computeKineticEnergy(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
 private:
-    /**
-     * Determine the size of body data structure in Cuda kernels
-     */
     size_t getBodyDataSize(CUmodule& module);
+
     class ReorderListener;
     ReorderListener* reorderListener;
 
+    template <class real, class real2>
+    real kineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator);
+
     OpenMM::CudaContext& cu;
     CUfunction kernel1, kernel2, kernel3;
+    CUfunction kineticEnergyKernel;
     void* pinnedBuffer;
 
     OpenMM::CudaArray atomLocation; // array of current locations of free and rigid-body atoms (*)
     OpenMM::CudaArray bodyData;     // array of rigid body data
     OpenMM::CudaArray bodyFixedPos; // array of body-fixed positions of rigid-body atoms
     OpenMM::CudaArray savedPos;
+    OpenMM::CudaArray freeAtomKE;
+    OpenMM::CudaArray bodyKE;
     
     // (*) The first numFree indices must correspond to free atoms
 

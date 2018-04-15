@@ -12,7 +12,7 @@ extern "C" typedef struct {
     mixed  invm;  // mass
     mixed3 invI;  // principal moments of inertia
     mixed3 r;     // center-of-mass position
-    mixed3 p;     // center-of-mass momentum
+    mixed3 v;     // center-of-mass velocity
     mixed3 F;     // resultant force
     mixed4 q;     // orientation quaternion
     mixed4 pi;    // quaternion-conjugated momentum
@@ -209,16 +209,22 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
     const mixed halfDt = half*dt;
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
         BodyData &body = bodyData[k];
-        body.p += body.F*halfDt;
+
+        // Half-step integration of velocities
+        body.v += body.F*(body.invm*halfDt);
         body.pi += body.Ctau*dt;
-        body.r += body.p*(body.invm*dt);
+
+        // Full-step translation and rotation
+        body.r += body.v*dt;
         noSquishRotation(body, dt, 1);
+
+        // Update of atomic positions and deltas from center of mass
         int loc = body.loc;
         for (int j = 0; j < body.N; j++) {
-            mixed3 delta = multiplyCt(body.q, multiplyB(body.q, bodyFixedPos[loc]));
             int i = atomLocation[numFree + loc];
-            posDelta[i] = growTo4(delta, 0.0);
+            mixed3 delta = multiplyCt(body.q, multiplyB(body.q, bodyFixedPos[loc]));
             storePos(posq, posqCorrection, i, body.r + delta);
+            posDelta[i] = growTo4(delta, 0.0);
             loc++;
         }
     }
@@ -229,19 +235,19 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
 --------------------------------------------------------------------------------------------------*/
 
 extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
-                                                   int stride,
-                                                   int numFree,
-                                                   int numBodies,
-                                                   const mixed dt,
-                                                   real4* __restrict__ posq,
-                                                   real4* __restrict__ posqCorrection,
-                                                   mixed4* __restrict__ velm,
-                                                   const long long* __restrict__ force,
-                                                   mixed4* __restrict__ posDelta,
-                                                   BodyData* __restrict__ bodyData,
-                                                   const int* __restrict__ atomLocation,
-                                                   const mixed3* __restrict__ bodyFixedPos,
-                                                   mixed3* __restrict__ savedPos) {
+                                                int stride,
+                                                int numFree,
+                                                int numBodies,
+                                                const mixed dt,
+                                                real4* __restrict__ posq,
+                                                real4* __restrict__ posqCorrection,
+                                                mixed4* __restrict__ velm,
+                                                const long long* __restrict__ force,
+                                                mixed4* __restrict__ posDelta,
+                                                BodyData* __restrict__ bodyData,
+                                                const int* __restrict__ atomLocation,
+                                                const mixed3* __restrict__ bodyFixedPos,
+                                                mixed3* __restrict__ savedPos) {
 
     const mixed scale = one/(mixed)0x100000000;
     const mixed halfDt = half*dt;
@@ -260,6 +266,8 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
 
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
         BodyData &body = bodyData[k];
+
+        // Computation of resultant force and torque
         body.F = make_mixed3(0.0);
         mixed3 tau = make_mixed3(0.0);
         int loc = numFree + body.loc;
@@ -272,18 +280,47 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
         }
         body.Ctau = multiplyC(body.q, tau);
 
-        body.p += body.F*halfDt;
+        // Half-step integration of velocities
+        body.v += body.F*(body.invm*halfDt);
         body.pi += body.Ctau*dt;
 
+        // Update of atomic velocities
         mixed3 omega = (body.invI*multiplyBt(body.q, body.pi))*half;
-        mixed3 vcm = body.p*body.invm;
         mixed3 spaceFixedOmega = multiplyCt(body.q, multiplyB(body.q, omega));
         loc = numFree + body.loc;
         for (int j = 0; j < body.N; j++) {
             int i = atomLocation[loc++];
-            mixed4& velocity = velm[i];
             mixed3 delta = trimTo3(posDelta[i]);
-            velocity = growTo4(vcm + cross(spaceFixedOmega, delta), velocity.w);
+            velm[i] = growTo4(body.v + cross(spaceFixedOmega, delta), velm[i].w);
         }
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Computation of kinetic energy.
+--------------------------------------------------------------------------------------------------*/
+
+extern "C" __global__ void computeKineticEnergies(int numFree,
+                                                  int numBodies,
+                                                  mixed4* __restrict__ velm,
+                                                  BodyData* __restrict__ bodyData,
+                                                  const int* __restrict__ atomLocation,
+                                                  mixed* __restrict__ freeAtomKE,
+                                                  mixed2* __restrict__ bodyKE) {
+
+    for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
+        mixed4& v = velm[atomLocation[j]];
+        freeAtomKE[j] = half*(v.x*v.x + v.y*v.y + v.z*v.z)/v.w;
+    }
+
+    for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
+        BodyData &body = bodyData[k];
+
+        mixed3& v = body.v;
+        bodyKE[k].x = half*(v.x*v.x + v.y*v.y + v.z*v.z)/body.invm;
+
+        mixed3 L = multiplyBt(body.q, body.pi)*half;
+        mixed3 omega = body.invI*L;
+        bodyKE[k].y = half*(L.x*omega.x + L.y*omega.y + L.z*omega.z);
     }
 }
