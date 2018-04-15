@@ -135,12 +135,13 @@ inline __device__ void uniaxialRotation(BodyData& body, mixed dtBy4, int axis) {
 inline __device__ void noSquishRotation(BodyData& body, mixed dt, int n) {
     mixed dtBy8n = dt/(8.0*n);
     mixed dtBy4n = 2.0*dtBy8n;
+    bool axis3 = body.invI.z != zero;
     for (int i = 0; i < n; i++) {
-        uniaxialRotation(body, dtBy8n, 3);
+        if (axis3) uniaxialRotation(body, dtBy8n, 3);
         uniaxialRotation(body, dtBy8n, 2);
         uniaxialRotation(body, dtBy4n, 1);
         uniaxialRotation(body, dtBy8n, 2);
-        uniaxialRotation(body, dtBy8n, 3);
+        if (axis3) uniaxialRotation(body, dtBy8n, 3);
     }
 }
 
@@ -199,10 +200,10 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
                                                    mixed3* __restrict__ savedPos) {
 
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
-        int index = atomLocation[j];
-        if (velm[index].w != zero) {
-            mixed3 pos = loadPos(posq, posqCorrection, index) + trimTo3(posDelta[index]);
-            storePos(posq, posqCorrection, index, pos);
+        int i = atomLocation[j];
+        if (velm[i].w != zero) {
+            mixed3 pos = loadPos(posq, posqCorrection, i) + trimTo3(posDelta[i]);
+            storePos(posq, posqCorrection, i, pos);
         }
     }
 
@@ -235,23 +236,22 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
 --------------------------------------------------------------------------------------------------*/
 
 extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
-                                                int stride,
-                                                int numFree,
-                                                int numBodies,
-                                                const mixed dt,
-                                                real4* __restrict__ posq,
-                                                real4* __restrict__ posqCorrection,
-                                                mixed4* __restrict__ velm,
-                                                const long long* __restrict__ force,
-                                                mixed4* __restrict__ posDelta,
-                                                BodyData* __restrict__ bodyData,
-                                                const int* __restrict__ atomLocation,
-                                                const mixed3* __restrict__ bodyFixedPos,
-                                                mixed3* __restrict__ savedPos) {
+                                                   int stride,
+                                                   int numFree,
+                                                   int numBodies,
+                                                   const mixed dt,
+                                                   real4* __restrict__ posq,
+                                                   real4* __restrict__ posqCorrection,
+                                                   mixed4* __restrict__ velm,
+                                                   const long long* __restrict__ force,
+                                                   mixed4* __restrict__ posDelta,
+                                                   BodyData* __restrict__ bodyData,
+                                                   const int* __restrict__ atomLocation,
+                                                   const mixed3* __restrict__ bodyFixedPos,
+                                                   mixed3* __restrict__ savedPos) {
 
     const mixed scale = one/(mixed)0x100000000;
     const mixed halfDt = half*dt;
-    const mixed halfDtScaled = scale*halfDt;
     const mixed invDt = one/dt;
 
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
@@ -259,7 +259,7 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
         mixed4& velocity = velm[i];
         if (velocity.w != zero) {
             mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
-            mixed3 v = trimTo3(velocity) + halfDt*velocity.w*f;
+            mixed3 v = trimTo3(velocity) + f*(velocity.w*halfDt);
             velocity = growTo4(v, velocity.w);
         }
     }
@@ -315,10 +315,8 @@ extern "C" __global__ void computeKineticEnergies(int numFree,
 
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
         BodyData &body = bodyData[k];
-
         mixed3& v = body.v;
         bodyKE[k].x = half*(v.x*v.x + v.y*v.y + v.z*v.z)/body.invm;
-
         mixed3 L = multiplyBt(body.q, body.pi)*half;
         mixed3 omega = body.invI*L;
         bodyKE[k].y = half*(L.x*omega.x + L.y*omega.y + L.z*omega.z);

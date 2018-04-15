@@ -82,6 +82,9 @@ private:
     template <class real, class real2>
     real kineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator);
 
+    template <class real, class real2, class real3>
+    real allocateArrays(size_t bodyDataSize);
+
     OpenMM::CudaContext& cu;
     CUfunction kernel1, kernel2, kernel3;
     CUfunction kineticEnergyKernel;
@@ -91,7 +94,7 @@ private:
     OpenMM::CudaArray bodyData;     // array of rigid body data
     OpenMM::CudaArray bodyFixedPos; // array of body-fixed positions of rigid-body atoms
     OpenMM::CudaArray savedPos;
-    OpenMM::CudaArray freeAtomKE;
+    OpenMM::CudaArray atomKE;
     OpenMM::CudaArray bodyKE;
     
     // (*) The first numFree indices must correspond to free atoms
@@ -101,6 +104,7 @@ private:
     int paddedNumActualAtoms;
     int paddedNumBodies;
     int paddedNumBodyAtoms;
+    int paddedNumFree;
 };
 
 } // namespace RigidBodyPlugin

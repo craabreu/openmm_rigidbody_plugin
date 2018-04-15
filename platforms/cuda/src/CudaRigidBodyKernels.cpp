@@ -152,23 +152,41 @@ real CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& context,
                     &cu.getVelm().getDevicePointer(),
                     &bodyData.getDevicePointer(),
                     &atomLocation.getDevicePointer(),
-                    &freeAtomKE.getDevicePointer(),
+                    &atomKE.getDevicePointer(),
                     &bodyKE.getDevicePointer()};
     cu.executeKernel(kineticEnergyKernel, args, numAtoms, 128);
 
     real KE = (real)0.0;
-
-    real* aKE = (real*)pinnedBuffer;
-    freeAtomKE.download(aKE);
-    for (int i = 0; i < numFree; i++)
-        KE += aKE[i];
-
-    real2* bKE = (real2*)pinnedBuffer;
-    bodyKE.download(bKE);
-    for (int i = 0; i < numBodies; i++)
-        KE += bKE[i].x + bKE[i].y;
+    if (numFree != 0) {
+        real* aKE = (real*)pinnedBuffer;
+        atomKE.download(aKE);
+        for (int i = 0; i < numFree; i++)
+            KE += aKE[i];
+    }
+    if (numBodies != 0) {
+        real2* bKE = (real2*)pinnedBuffer;
+        bodyKE.download(bKE);
+        for (int i = 0; i < numBodies; i++)
+            KE += bKE[i].x + bKE[i].y;
+    }
 
     return KE;
+}
+
+/*--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------*/
+
+template <class real, class real2, class real3>
+real CudaIntegrateRigidBodyStepKernel::allocateArrays(size_t bodyDataSize) {
+    if (numBodies != 0) {
+        bodyData.initialize(cu, paddedNumBodies, bodyDataSize, "bodyData");
+        bodyFixedPos.initialize<real3>(cu, paddedNumBodyAtoms, "bodyFixedPos");
+        bodyKE.initialize<real2>(cu, paddedNumBodies, "bodyKE");
+    }
+    if (numFree != 0) {
+        savedPos.initialize<real3>(cu, paddedNumFree, "savedPos");
+        atomKE.initialize<real>(cu, paddedNumFree, "atomKE");
+    }
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -205,12 +223,14 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
     paddedNumActualAtoms = TileSize*((numActualAtoms + TileSize - 1)/TileSize);
     paddedNumBodies = TileSize*((numBodies + TileSize - 1)/TileSize);
     paddedNumBodyAtoms = TileSize*((numBodyAtoms + TileSize - 1)/TileSize);
+    paddedNumFree = TileSize*((numFree + TileSize - 1)/TileSize);
 
     // Create pinned buffer for fast memory transfer:
-    size_t bodyFixedPosSize = mixedOrDouble ? sizeof(double3) : sizeof(float3);
+    size_t CoordinateSize = mixedOrDouble ? sizeof(double3) : sizeof(float3);
     size_t pinnedBufferSize = max(paddedNumBodies*bodyDataSize,
                               max(paddedNumActualAtoms*sizeof(int),
-                                  paddedNumBodyAtoms*bodyFixedPosSize));
+                              max(paddedNumBodyAtoms*CoordinateSize,
+                                  paddedNumFree*CoordinateSize)));
     CUresult result = cuMemHostAlloc(&pinnedBuffer, pinnedBufferSize, 0);
     if (result != CUDA_SUCCESS)
         throw OpenMMException("Error creating pinned buffer for rigid body integrator");
@@ -229,28 +249,11 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
     reorderListener = new ReorderListener(cu, *bodySystem, atomLocation);
     cu.addReorderListener(reorderListener);
 
-    // Allocate arrays of body data and body-fixed atom positions, if necessary:
-    if (numBodies != 0) {
-        bodyData.initialize(cu, paddedNumBodies, bodyDataSize, "bodyData");
-        if (mixedOrDouble)
-            bodyFixedPos.initialize<double3>(cu, paddedNumBodyAtoms, "bodyFixedPos");
-        else
-            bodyFixedPos.initialize<float3>(cu, paddedNumBodyAtoms, "bodyFixedPos");
-    }
-
-    // Allocate arrays for storing free-atom positions, free-atom kinetic energies,
-    // and body kinetic energies
-    int paddedNumFree = TileSize*((numFree + TileSize - 1)/TileSize);
-    if (mixedOrDouble) {
-      savedPos.initialize<double3>(cu, paddedNumFree, "savedPos");
-      freeAtomKE.initialize<double>(cu, paddedNumFree, "freeAtomKE");
-      bodyKE.initialize<double2>(cu, paddedNumBodies, "bodyKE");
-    }
-    else {
-      savedPos.initialize<float3>(cu, paddedNumFree, "savedPos");
-      freeAtomKE.initialize<float>(cu, paddedNumFree, "freeAtomKE");
-      bodyKE.initialize<float2>(cu, paddedNumBodies, "bodyKE");
-    }
+    // Allocate arrays
+    if (mixedOrDouble)
+        allocateArrays<double,double2,double3>(bodyDataSize);
+    else
+        allocateArrays<float,float2,float3>(bodyDataSize);
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -269,8 +272,8 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 bodyDataDouble& body = data[i];
                 body.N = b.N;
                 body.loc = b.loc;
-                body.invm = 1.0/b.mass;
-                body.invI = make_double3(1.0/b.MoI[0], 1.0/b.MoI[1], 1.0/b.MoI[2]);
+                body.invm = b.invMass;
+                body.invI = make_double3(b.invMoI[0], b.invMoI[1], b.invMoI[2]);
                 body.r = make_double3(b.rcm[0], b.rcm[1], b.rcm[2]);
                 body.v = make_double3(b.pcm[0]/b.mass, b.pcm[1]/b.mass, b.pcm[2]/b.mass);
                 body.F = make_double3(b.force[0], b.force[1], b.force[2]);
@@ -293,8 +296,8 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 bodyDataFloat& body = data[i];
                 body.N = b.N;
                 body.loc = b.loc;
-                body.invm = 1.0/b.mass;
-                body.invI = make_float3(1.0/b.MoI[0], 1.0/b.MoI[1], 1.0/b.MoI[2]);
+                body.invm = b.invMass;
+                body.invI = make_float3(b.invMoI[0], b.invMoI[1], b.invMoI[2]);
                 body.r = make_float3(b.rcm[0], b.rcm[1], b.rcm[2]);
                 body.v = make_float3(b.pcm[0]/b.mass, b.pcm[1]/b.mass, b.pcm[2]/b.mass);
                 body.F = make_float3(b.force[0], b.force[1], b.force[2]);
@@ -343,7 +346,8 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
                     &bodyFixedPos.getDevicePointer(),
                     &savedPos.getDevicePointer()};
 
-    cu.executeKernel(kernel1, args, numFree, 128);
+    if (numFree != 0)
+        cu.executeKernel(kernel1, args, numFree, 128);
 
     // Apply constraints.
 

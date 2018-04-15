@@ -36,6 +36,9 @@ public:
     int    loc;           // location of first atom index
     int*   atom;          // pointer to the index of the first atom
     Vec3*  d;             // pointer to the body-fixed position of the first atom
+
+    double invMass;       // total body mass and its inverse
+    Vec3   invMoI;        // Principal moments of inertia and their inverses
 };
 
 
