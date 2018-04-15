@@ -47,8 +47,8 @@ using namespace std;
 typedef struct {
     int    N;     // number of atoms
     int    loc;   // pointer to set of atoms
-    float  invm;  // mass
-    float3 invI;  // principal moments of inertia
+    float  invm;  // inverse mass
+    float3 invI;  // inverse principal moments of inertia
     float3 r;     // center-of-mass position
     float3 p;     // center-of-mass momentum
     float3 F;     // resultant force
@@ -60,8 +60,8 @@ typedef struct {
 typedef struct {
     int     N;     // number of atoms
     int     loc;   // pointer to set of atoms
-    double  invm;  // mass
-    double3 invI;  // principal moments of inertia
+    double  invm;  // inverse mass
+    double3 invI;  // inverse principal moments of inertia
     double3 r;     // center-of-mass position
     double3 p;     // center-of-mass momentum
     double3 F;     // resultant force
@@ -237,7 +237,6 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 body.Ctau = make_double4(b.torque[0], b.torque[1], b.torque[2], b.torque[3]);
             }
             bodyData.upload(data);
-
             double3* d = (double3*) pinnedBuffer;
             for (int i = 0; i < numBodyAtoms; i++) {
                 Vec3 x = bodySystem.getBodyFixedPosition(i);
@@ -252,7 +251,7 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 bodyDataFloat& body = data[i];
                 body.N = b.N;
                 body.loc = b.loc;
-                body.invm = (float)(1.0/b.mass);
+                body.invm = 1.0/b.mass;
                 body.invI = make_float3(1.0/b.MoI[0], 1.0/b.MoI[1], 1.0/b.MoI[2]);
                 body.r = make_float3(b.rcm[0], b.rcm[1], b.rcm[2]);
                 body.p = make_float3(b.pcm[0], b.pcm[1], b.pcm[2]);

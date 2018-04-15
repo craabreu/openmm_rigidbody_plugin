@@ -82,7 +82,7 @@ void RigidBody::updateGeometry(vector<Vec3>& R, vector<Vec3>& F, vector<double>&
         d2[j] = delta[j].dot(delta[j]);
     }
 
-    // Principal moments of inertia and rotation matrix
+    // Principal moments of inertia, rotation matrix, and quaternion
     Vec3 u;
     Mat3 A;
     if (collinear(delta, d2, u)) {
@@ -102,8 +102,6 @@ void RigidBody::updateGeometry(vector<Vec3>& R, vector<Vec3>& F, vector<double>&
         A = eigenvectors(inertia, MoI);
         dof = 6;
     }
-
-    // Orientational quaternion
     q = Quat(A);
 
     // Atom positions in the body-fixed frame of reference

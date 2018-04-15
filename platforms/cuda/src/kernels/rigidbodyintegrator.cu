@@ -12,8 +12,8 @@ extern "C" typedef struct {
     mixed  invm;  // mass
     mixed3 invI;  // principal moments of inertia
     mixed3 r;     // center-of-mass position
-    mixed3 F;     // resultant force
     mixed3 p;     // center-of-mass momentum
+    mixed3 F;     // resultant force
     mixed4 q;     // orientation quaternion
     mixed4 pi;    // quaternion-conjugated momentum
     mixed4 Ctau;  // quaternion-frame resultant torque
@@ -170,7 +170,7 @@ extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
         mixed4& velocity = velm[i];
         if (velocity.w != zero) {
             mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
-            mixed3 v = trimTo3(velocity) + halfDt*velocity.w*f;
+            mixed3 v = trimTo3(velocity) + f*(velocity.w*halfDt);
             mixed3 delta = v*dt;
             velocity = growTo4(v, velocity.w);
             posDelta[i] = growTo4(delta, 0.0);
@@ -211,14 +211,14 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
         BodyData &body = bodyData[k];
         body.p += body.F*halfDt;
         body.pi += body.Ctau*dt;
-        body.r += body.p*(dt*body.invm);
+        body.r += body.p*(body.invm*dt);
         noSquishRotation(body, dt, 1);
         int loc = body.loc;
         for (int j = 0; j < body.N; j++) {
-            int i = atomLocation[numFree + loc];
             mixed3 delta = multiplyCt(body.q, multiplyB(body.q, bodyFixedPos[loc]));
+            int i = atomLocation[numFree + loc];
             posDelta[i] = growTo4(delta, 0.0);
-//            storePos(posq, posqCorrection, i, body.r + delta);
+            storePos(posq, posqCorrection, i, body.r + delta);
             loc++;
         }
     }
@@ -283,7 +283,7 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
             int i = atomLocation[loc++];
             mixed4& velocity = velm[i];
             mixed3 delta = trimTo3(posDelta[i]);
-//            velocity = growTo4(vcm + cross(spaceFixedOmega, delta), velocity.w);
+            velocity = growTo4(vcm + cross(spaceFixedOmega, delta), velocity.w);
         }
     }
 }
