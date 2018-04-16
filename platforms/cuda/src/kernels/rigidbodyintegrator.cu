@@ -2,6 +2,7 @@
 #define quarter ((mixed)0.25)
 #define half    ((mixed)0.50)
 #define one     ((mixed)1.00)
+#define two     ((mixed)2.00)
 
 /*--------------------------------------------------------------------------------------------------
   Define struct for rigid body data.
@@ -154,6 +155,87 @@ inline __device__ void noSquishRotation(BodyData& body, mixed dt, int n) {
 }
 
 /*--------------------------------------------------------------------------------------------------
+  Exact rotation
+--------------------------------------------------------------------------------------------------*/
+
+#define SIGN(x)      ((x) >= 0 ? 1 : -1)
+#define stairCase(x) ((x) > 0 ? (int)ceil((x) - 0.5) : (int)floor((x) + 0.5))
+#define PI           3.14159265358979323846264338328
+
+inline __device__ mixed Theta(mixed x, mixed n, mixed m) {
+    mixed x2 = x*x;
+    return (-1.0/3.0)*n*x*x2*carlsonRJ(1.0 - x2, 1.0 - m*x2, 1.0, 1.0 + n*x2);
+}
+
+inline __device__ void exactRotation(BodyData& body, mixed dt) {
+    mixed3& invI = body.invI;
+    mixed3 I = make_mixed3(one/invI.x, one/invI.y, invI.z != zero ? one/invI.z : zero);
+    mixed3 Iw = Bt(body.q, body.pi)*half;
+    mixed3 w0 = invI*Iw;
+    mixed Lsq = Iw.y*Iw.y + Iw.z*Iw.z;
+    if (Lsq < EPSILON) return uniaxialRotationAxis1(body, dt);
+    Lsq += Iw.x*Iw.x;
+    mixed L = sqrt(Lsq);
+    mixed twoKr = dot(Iw, w0);
+    mixed4 z0 = make_mixed4(Iw.z, Iw.y, L - Iw.x, zero);
+    mixed r1 = Lsq - twoKr*I.z;
+    mixed r3 = twoKr*I.x - Lsq;
+    mixed l1 = r1*invI.y/(I.y - I.z);
+    mixed l3 = r3*invI.y/(I.x - I.y);
+    mixed lmin = min(l1, l3);
+    mixed3 a = make_mixed3(SIGN(w0.x)*sqrt(r1*invI.x/(I.x - I.z)),
+                           sqrt(lmin),
+                           SIGN(w0.z)*sqrt(r3*invI.z/(I.x - I.z)));
+    mixed m = lmin/max(l1, l3);
+    mixed K = carlsonRF(zero, one - m, one);
+    mixed inv2K = half/K;
+    mixed s0 = w0.y/a.y;
+    mixed c0, u0;
+    int i0;
+    if (fabs(s0) < one) {
+        c0 = l1 < l3 ? w0.x/a.x : w0.z/a.z;
+        u0 = s0*carlsonRF(one - s0*s0, one - m*s0*s0, one);
+        i0 = stairCase(u0*inv2K);
+    }
+    else {
+        a.y = fabs(w0.y);
+        s0 = SIGN(s0);
+        c0 = zero;
+        u0 = s0*K;
+        i0 = 0;
+    }
+    mixed wp = (I.z - I.x)*body.invI.y*a.x*a.z/a.y;
+    mixed u = wp*dt + u0;
+    int jump = stairCase(u*inv2K) - i0;
+    mixed sn, cn, dn, deltaF;
+    jacobi(u, m, sn, cn, dn);
+    mixed alpha = I.x*a.x/L;
+    mixed eta = alpha*alpha;
+    eta /= one - eta;
+    if (l1 < l3) {
+        mixed C = sqrt(m + eta);
+        deltaF = u - u0 + SIGN(cn)*Theta(sn, eta, m) - SIGN(c0)*Theta(s0, eta, m)
+                         + (alpha/C)*(atan(C*sn/dn) - atan(C*s0*a.z/w0.z));
+        if (jump != 0) deltaF += jump*two*Theta(one, eta, m);
+        Iw = I*a*make_mixed3(cn, sn, dn);
+    }
+    else {
+        mixed k2eta = m*eta;
+        mixed C = sqrt(one + k2eta);
+        deltaF = u - u0 + SIGN(cn)*Theta(sn, k2eta, m) - SIGN(c0)*Theta(s0, k2eta, m)
+                        + (alpha/C)*(atan(C*sn/cn) - atan(C*s0/c0));
+        if (jump != 0) deltaF += jump*(two*Theta(one, k2eta, m) + (alpha/C)*PI);
+        Iw = I*a*make_mixed3(dn, sn, cn);
+    }
+    deltaF *= one + eta;
+    mixed phi = (Lsq*(u - u0) + r3*deltaF)/(two*L*I.x*wp);
+    mixed4 z = make_mixed4( Iw.z, Iw.y, L - Iw.x,     zero)*cos(phi) +
+               make_mixed4(-Iw.y, Iw.z,     zero, L - Iw.x)*sin(phi);
+    body.q = normalize(z*dot(z0, body.q) + C(z, Ct(z0, body.q)));
+    body.pi = B(body.q, Iw*two);
+}
+
+/*--------------------------------------------------------------------------------------------------
   Perform the initial step of Rigid Body integration.
 --------------------------------------------------------------------------------------------------*/
 
@@ -225,7 +307,8 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
 
         // Full-step translation and rotation
         body.r += body.v*dt;
-        noSquishRotation(body, dt, 1);
+//        noSquishRotation(body, dt, 1);
+        exactRotation(body, dt);
 
         // Update of atomic positions and their displacements from the center of mass
         int loc = body.loc;

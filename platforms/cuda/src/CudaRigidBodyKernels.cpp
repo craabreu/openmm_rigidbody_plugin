@@ -80,7 +80,7 @@ public:
     }
     void execute() {
         int numActualAtoms = bodySystem.getNumActualAtoms();
-        int paddedNumAtoms = cu.getPaddedNumAtoms();
+        int stride = cu.getPaddedNumAtoms();
         vector<int> location(atomLocation.getSize());
         atomLocation.download(location);
 
@@ -91,8 +91,8 @@ public:
         for (int i = 0; i < numActualAtoms; i++) {
             int loc = location[i];
             F[k++] = force[loc];
-            F[k++] = force[loc+paddedNumAtoms];
-            F[k++] = force[loc+paddedNumAtoms*2];
+            F[k++] = force[loc+stride];
+            F[k++] = force[loc+stride*2];
         }
 
         const vector<int>& order = cu.getAtomIndex();
@@ -106,8 +106,8 @@ public:
         for (int i = 0; i < numActualAtoms; i++) {
             int loc = location[i];
             force[loc] = F[k++];
-            force[loc+paddedNumAtoms] = F[k++];
-            force[loc+paddedNumAtoms*2] = F[k++];
+            force[loc+stride] = F[k++];
+            force[loc+stride*2] = F[k++];
         }
 
         atomLocation.upload(location);
@@ -181,6 +181,7 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
     cu.setAsCurrent();
     map<string, string> defines;
     CUmodule module = cu.createModule(CudaRigidBodyKernelSources::vectorOps +
+                                      CudaRigidBodyKernelSources::elliptic +
                                       CudaRigidBodyKernelSources::rigidbodyintegrator,
                                       defines, "");
     kernel1 = cu.getKernel(module, "integrateRigidBodyPart1");
