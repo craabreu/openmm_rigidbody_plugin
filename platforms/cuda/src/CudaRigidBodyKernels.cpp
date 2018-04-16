@@ -73,24 +73,6 @@ typedef struct {
 /*--------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------*/
 
-size_t CudaIntegrateRigidBodyStepKernel::getBodyDataSize(CUmodule& module) {
-    CUfunction kernel = cu.getKernel(module, "getBodyDataSize");
-    CUdeviceptr pointer;
-    void* arg[] = {&pointer};
-    CUresult result = cuMemAlloc(&pointer, sizeof(size_t));
-    if (result != CUDA_SUCCESS)
-        throw OpenMMException("Error creating variable for retrieving rigid body data size");
-    cu.executeKernel(kernel, arg, 1, 128);
-    size_t bodyDataSize;
-    result = cuMemcpyDtoH(&bodyDataSize, pointer, sizeof(size_t));
-    if (result != CUDA_SUCCESS)
-        throw OpenMMException("Error retrieving rigid body data size from device memory");
-    return bodyDataSize;
-}
-
-/*--------------------------------------------------------------------------------------------------
---------------------------------------------------------------------------------------------------*/
-
 class CudaIntegrateRigidBodyStepKernel::ReorderListener : public CudaContext::ReorderListener {
 public:
     ReorderListener(CudaContext& cu, RigidBodySystem& bodySystem, CudaArray& atomLocation) :
@@ -154,6 +136,7 @@ real CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& context,
                     &atomLocation.getDevicePointer(),
                     &atomKE.getDevicePointer(),
                     &bodyKE.getDevicePointer()};
+
     cu.executeKernel(kineticEnergyKernel, args, numAtoms, 128);
 
     real KE = (real)0.0;
@@ -205,12 +188,8 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
     kernel3 = cu.getKernel(module, "integrateRigidBodyPart3");
     kineticEnergyKernel = cu.getKernel(module, "computeKineticEnergies");
 
-    size_t bodyDataSize = getBodyDataSize(module);
     bool mixedOrDouble = cu.getUseMixedPrecision() || cu.getUseDoublePrecision();
-    if (mixedOrDouble && bodyDataSize != sizeof(bodyDataDouble))
-        throw OpenMMException("Error in size of memory chunk allocated for body data");
-    else if (!mixedOrDouble && bodyDataSize != sizeof(bodyDataFloat))
-        throw OpenMMException("Error in size of memory chunk allocated for body data");
+    size_t bodyDataSize = mixedOrDouble ? sizeof(bodyDataDouble) : sizeof(bodyDataFloat);
 
     RigidBodySystem* bodySystem = integrator.getRigidBodySystem();
     numBodies = bodySystem->getNumBodies();

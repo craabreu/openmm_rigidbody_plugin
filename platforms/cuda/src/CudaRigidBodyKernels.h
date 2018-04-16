@@ -74,8 +74,6 @@ public:
      */
     double computeKineticEnergy(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
 private:
-    size_t getBodyDataSize(CUmodule& module);
-
     class ReorderListener;
     ReorderListener* reorderListener;
 
@@ -90,14 +88,12 @@ private:
     CUfunction kineticEnergyKernel;
     void* pinnedBuffer;
 
-    OpenMM::CudaArray atomLocation; // array of current locations of free and rigid-body atoms (*)
-    OpenMM::CudaArray bodyData;     // array of rigid body data
-    OpenMM::CudaArray bodyFixedPos; // array of body-fixed positions of rigid-body atoms
+    OpenMM::CudaArray atomLocation;
+    OpenMM::CudaArray bodyData;
+    OpenMM::CudaArray bodyFixedPos;
     OpenMM::CudaArray savedPos;
     OpenMM::CudaArray atomKE;
     OpenMM::CudaArray bodyKE;
-    
-    // (*) The first numFree indices must correspond to free atoms
 
     int numBodies;
     int numFree;
