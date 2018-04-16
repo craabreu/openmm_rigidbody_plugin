@@ -1,6 +1,7 @@
-#define zero ((mixed)0.0)
-#define half ((mixed)0.5)
-#define one  ((mixed)1.0)
+#define zero    ((mixed)0.00)
+#define quarter ((mixed)0.25)
+#define half    ((mixed)0.50)
+#define one     ((mixed)1.00)
 
 /*--------------------------------------------------------------------------------------------------
   Define struct for rigid body data.
@@ -68,64 +69,80 @@ inline __device__ void storePos(real4* __restrict__ posq,
 }
 
 /*--------------------------------------------------------------------------------------------------
-  Multiplications with rotation matrix factors
+  Pre-multiplication with rotation matrix factors.
 --------------------------------------------------------------------------------------------------*/
 
-inline __device__ mixed4 multiplyB(mixed4 q, mixed3 v) {
+inline __device__ mixed4 B(mixed4 q, mixed3 v) {
     return make_mixed4(-q.y*v.x - q.z*v.y - q.w*v.z,
                         q.x*v.x - q.w*v.y + q.z*v.z,
                         q.w*v.x + q.x*v.y - q.y*v.z,
                        -q.z*v.x + q.y*v.y + q.x*v.z);
 }
 
-inline __device__ mixed4 multiplyC(mixed4 q, mixed3 v) {
+inline __device__ mixed4 C(mixed4 q, mixed3 v) {
     return make_mixed4(-q.y*v.x - q.z*v.y - q.w*v.z,
                         q.x*v.x + q.w*v.y - q.z*v.z,
                        -q.w*v.x + q.x*v.y + q.y*v.z,
                         q.z*v.x - q.y*v.y + q.x*v.z);
 }
 
-inline __device__ mixed3 multiplyBt(mixed4 q, mixed4 v) {
+inline __device__ mixed3 Bt(mixed4 q, mixed4 v) {
     return make_mixed3(-q.y*v.x + q.x*v.y + q.w*v.z - q.z*v.w,
                        -q.z*v.x - q.w*v.y + q.x*v.z + q.y*v.w,
                        -q.w*v.x + q.z*v.y - q.y*v.z + q.x*v.w);
 }
 
-inline __device__ mixed3 multiplyCt(mixed4 q, mixed4 v) {
+inline __device__ mixed3 Ct(mixed4 q, mixed4 v) {
     return make_mixed3(-q.y*v.x + q.x*v.y - q.w*v.z + q.z*v.w,
                        -q.z*v.x + q.w*v.y + q.x*v.z - q.y*v.w,
                        -q.w*v.x - q.z*v.y + q.y*v.z + q.x*v.w);
 }
 
 /*--------------------------------------------------------------------------------------------------
-  Uniaxial rotation
+  Pre-multiplication with permutation matrices.
 --------------------------------------------------------------------------------------------------*/
 
-inline __device__ void uniaxialRotation(BodyData& body, mixed dtBy4, int axis) {
-    mixed4& q = body.q;
-    mixed4& p = body.pi;
-    mixed4 Bq, Bp;
-    mixed invMoI;
-    if (axis == 0) {
-        Bq = make_mixed4(-q.y,  q.x,  q.w, -q.z);
-        Bp = make_mixed4(-p.y,  p.x,  p.w, -p.z);
-        invMoI = body.invI.x;
-    }
-    else if (axis == 1) {
-        Bq = make_mixed4(-q.z, -q.w,  q.x,  q.y);
-        Bp = make_mixed4(-p.z, -p.w,  p.x,  p.y);
-        invMoI = body.invI.y;
-    }
-    else {
-        Bq = make_mixed4(-q.w,  q.z, -q.y,  q.x);
-        Bp = make_mixed4(-p.w,  p.z, -p.y,  p.x);
-        invMoI = body.invI.z;
-    }
-    mixed omegaDtBy2 = dot(p, Bq)*dtBy4*invMoI;
+inline __device__ mixed4 B1(mixed4 q) {
+    return make_mixed4(-q.y,  q.x,  q.w, -q.z);
+}
+
+inline __device__ mixed4 B2(mixed4 q) {
+    return make_mixed4(-q.z, -q.w,  q.x,  q.y);
+}
+
+inline __device__ mixed4 B3(mixed4 q) {
+    return make_mixed4(-q.w,  q.z, -q.y,  q.x);
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Uniaxial rotations
+--------------------------------------------------------------------------------------------------*/
+
+inline __device__ void uniaxialRotationAxis1(BodyData& body, mixed dt) {
+    mixed4 Bq = B1(body.q);
+    mixed omegaDtBy2 = quarter*dot(body.pi, Bq)*dt*body.invI.x;
     mixed vsin = sin(omegaDtBy2);
     mixed vcos = cos(omegaDtBy2);
-    q = q*vcos + Bq*vsin;
-    p = p*vcos + Bp*vsin;
+    body.q = body.q*vcos + Bq*vsin;
+    body.pi = body.pi*vcos + B1(body.pi)*vsin;
+}
+
+inline __device__ void uniaxialRotationAxis2(BodyData& body, mixed dt) {
+    mixed4 Bq = B2(body.q);
+    mixed omegaDtBy2 = quarter*dot(body.pi, Bq)*dt*body.invI.y;
+    mixed vsin = sin(omegaDtBy2);
+    mixed vcos = cos(omegaDtBy2);
+    body.q = body.q*vcos + Bq*vsin;
+    body.pi = body.pi*vcos + B2(body.pi)*vsin;
+}
+
+inline __device__ void uniaxialRotationAxis3(BodyData& body, mixed dt) {
+    mixed4 Bq = B3(body.q);
+    mixed omegaDtBy2 = quarter*dot(body.pi, Bq)*dt*body.invI.z;
+    mixed vsin = sin(omegaDtBy2);
+    mixed vcos = cos(omegaDtBy2);
+    body.q = body.q*vcos + Bq*vsin;
+    body.pi = body.pi*vcos + B3(body.pi)*vsin;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -133,15 +150,14 @@ inline __device__ void uniaxialRotation(BodyData& body, mixed dtBy4, int axis) {
 --------------------------------------------------------------------------------------------------*/
 
 inline __device__ void noSquishRotation(BodyData& body, mixed dt, int n) {
-    mixed dtBy8n = dt/(8.0*n);
-    mixed dtBy4n = 2.0*dtBy8n;
+    mixed halfDt = 0.5*dt;
     bool axis3 = body.invI.z != zero;
     for (int i = 0; i < n; i++) {
-        if (axis3) uniaxialRotation(body, dtBy8n, 3);
-        uniaxialRotation(body, dtBy8n, 2);
-        uniaxialRotation(body, dtBy4n, 1);
-        uniaxialRotation(body, dtBy8n, 2);
-        if (axis3) uniaxialRotation(body, dtBy8n, 3);
+        if (axis3) uniaxialRotationAxis3(body, halfDt);
+        uniaxialRotationAxis2(body, halfDt);
+        uniaxialRotationAxis1(body, dt);
+        uniaxialRotationAxis2(body, halfDt);
+        if (axis3) uniaxialRotationAxis3(body, halfDt);
     }
 }
 
@@ -171,10 +187,10 @@ extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
         mixed4& velocity = velm[i];
         if (velocity.w != zero) {
             mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
-            mixed3 v = trimTo3(velocity) + f*(velocity.w*halfDt);
+            mixed3 v = trim(velocity) + f*(velocity.w*halfDt);
             mixed3 delta = v*dt;
-            velocity = growTo4(v, velocity.w);
-            posDelta[i] = growTo4(delta, 0.0);
+            velocity = fuse(v, velocity.w);
+            posDelta[i] = fuse(delta, zero);
             savedPos[j] = loadPos(posq, posqCorrection, i) + delta;
         }
     }
@@ -185,7 +201,7 @@ extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
 --------------------------------------------------------------------------------------------------*/
 
 extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
-                                                   int paddedNumAtoms,
+                                                   int stride,
                                                    int numFree,
                                                    int numBodies,
                                                    const mixed dt,
@@ -202,7 +218,7 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         int i = atomLocation[j];
         if (velm[i].w != zero) {
-            mixed3 pos = loadPos(posq, posqCorrection, i) + trimTo3(posDelta[i]);
+            mixed3 pos = loadPos(posq, posqCorrection, i) + trim(posDelta[i]);
             storePos(posq, posqCorrection, i, pos);
         }
     }
@@ -219,13 +235,13 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
         body.r += body.v*dt;
         noSquishRotation(body, dt, 1);
 
-        // Update of atomic positions and deltas from center of mass
+        // Update of atomic positions and their displacements from the center of mass
         int loc = body.loc;
         for (int j = 0; j < body.N; j++) {
             int i = atomLocation[numFree + loc];
-            mixed3 delta = multiplyCt(body.q, multiplyB(body.q, bodyFixedPos[loc]));
+            mixed3 delta = Ct(body.q, B(body.q, bodyFixedPos[loc]));
             storePos(posq, posqCorrection, i, body.r + delta);
-            posDelta[i] = growTo4(delta, 0.0);
+            posDelta[i] = fuse(delta, zero);
             loc++;
         }
     }
@@ -259,8 +275,8 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
         mixed4& velocity = velm[i];
         if (velocity.w != zero) {
             mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
-            mixed3 v = trimTo3(velocity) + f*(velocity.w*halfDt);
-            velocity = growTo4(v, velocity.w);
+            mixed3 v = trim(velocity) + f*(velocity.w*halfDt);
+            velocity = fuse(v, velocity.w);
         }
     }
 
@@ -268,30 +284,30 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
         BodyData &body = bodyData[k];
 
         // Computation of resultant force and torque
-        body.F = make_mixed3(0.0);
-        mixed3 tau = make_mixed3(0.0);
+        body.F = make_mixed3(zero, zero, zero);
+        mixed3 tau = make_mixed3(zero, zero, zero);
         int loc = numFree + body.loc;
         for (int j = 0; j < body.N; j++) {
             int i = atomLocation[loc++];
-            mixed3 delta = trimTo3(posDelta[i]);
+            mixed3 delta = trim(posDelta[i]);
             mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
             body.F += f;
             tau += cross(delta, f);
         }
-        body.Ctau = multiplyC(body.q, tau);
+        body.Ctau = C(body.q, tau);
 
         // Half-step integration of velocities
         body.v += body.F*(body.invm*halfDt);
         body.pi += body.Ctau*dt;
 
         // Update of atomic velocities
-        mixed3 omega = (body.invI*multiplyBt(body.q, body.pi))*half;
-        mixed3 spaceFixedOmega = multiplyCt(body.q, multiplyB(body.q, omega));
+        mixed3 omega = (body.invI*Bt(body.q, body.pi))*half;
+        mixed3 spaceFixedOmega = Ct(body.q, B(body.q, omega));
         loc = numFree + body.loc;
         for (int j = 0; j < body.N; j++) {
             int i = atomLocation[loc++];
-            mixed3 delta = trimTo3(posDelta[i]);
-            velm[i] = growTo4(body.v + cross(spaceFixedOmega, delta), velm[i].w);
+            mixed3 delta = trim(posDelta[i]);
+            velm[i] = fuse(body.v + cross(spaceFixedOmega, delta), velm[i].w);
         }
     }
 }
@@ -305,20 +321,17 @@ extern "C" __global__ void computeKineticEnergies(int numFree,
                                                   mixed4* __restrict__ velm,
                                                   BodyData* __restrict__ bodyData,
                                                   const int* __restrict__ atomLocation,
-                                                  mixed* __restrict__ freeAtomKE,
+                                                  mixed* __restrict__ atomKE,
                                                   mixed2* __restrict__ bodyKE) {
 
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         mixed4& v = velm[atomLocation[j]];
-        freeAtomKE[j] = half*(v.x*v.x + v.y*v.y + v.z*v.z)/v.w;
+        atomKE[j] = half*(v.x*v.x + v.y*v.y + v.z*v.z)/v.w;
     }
 
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
         BodyData &body = bodyData[k];
-        mixed3& v = body.v;
-        bodyKE[k].x = half*(v.x*v.x + v.y*v.y + v.z*v.z)/body.invm;
-        mixed3 L = multiplyBt(body.q, body.pi)*half;
-        mixed3 omega = body.invI*L;
-        bodyKE[k].y = half*(L.x*omega.x + L.y*omega.y + L.z*omega.z);
+        mixed3 L = Bt(body.q, body.pi)*half;
+        bodyKE[k] = make_mixed2(dot(body.v/body.invm, body.v), dot(L, L*body.invI))*half;
     }
 }

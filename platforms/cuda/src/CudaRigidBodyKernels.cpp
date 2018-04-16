@@ -332,8 +332,6 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
     bool useDouble = cu.getUseDoublePrecision() || cu.getUseMixedPrecision();
     int numThreads = max(numFree, numBodies);
 
-    // Call the first integration kernel.
-
     void* args[] = {&numAtoms, &paddedNumAtoms, &numFree, &numBodies,
                     useDouble ? (void*) &timeStepDouble : (void*) &timeStepFloat,
                     &cu.getPosq().getDevicePointer(),
@@ -346,12 +344,11 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
                     &bodyFixedPos.getDevicePointer(),
                     &savedPos.getDevicePointer()};
 
-    if (numFree != 0)
+    if (numFree != 0) {
         cu.executeKernel(kernel1, args, numFree, 128);
+        integration.applyConstraints(integrator.getConstraintTolerance());
+    }
 
-    // Apply constraints.
-
-    integration.applyConstraints(integrator.getConstraintTolerance());
     cu.executeKernel(kernel2, args, numThreads, 128);
     integration.computeVirtualSites();
 
@@ -359,9 +356,8 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
 
     cu.executeKernel(kernel3, args, numThreads, 128);
 
-    integration.applyVelocityConstraints(integrator.getConstraintTolerance());
-
-    // Update the time and step count.
+    if (numFree != 0)
+        integration.applyVelocityConstraints(integrator.getConstraintTolerance());
 
     cu.setTime(cu.getTime()+integrator.getStepSize());
     cu.setStepCount(cu.getStepCount()+1);

@@ -602,20 +602,20 @@ inline __device__ double4 normalize(double4 a) {
 
 // Strip off the fourth component of a vector.
 
-inline __device__ float3 trimTo3(float4 v) {
+inline __device__ float3 trim(float4 v) {
     return make_float3(v.x, v.y, v.z);
 }
 
-inline __device__ double3 trimTo3(double4 v) {
+inline __device__ double3 trim(double4 v) {
     return make_double3(v.x, v.y, v.z);
 }
 
 // Add fourth component to a vector.
 
-inline __device__ float4 growTo4(float3 v, float a) {
+inline __device__ float4 fuse(float3 v, float a) {
     return make_float4(v.x, v.y, v.z, a);
 }
 
-inline __device__ double4 growTo4(double3 v, double a) {
+inline __device__ double4 fuse(double3 v, double a) {
     return make_double4(v.x, v.y, v.z, a);
 }
