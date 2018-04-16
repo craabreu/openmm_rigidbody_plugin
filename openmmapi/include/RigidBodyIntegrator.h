@@ -50,9 +50,20 @@ public:
     /**
      * Create a RigidBodyIntegrator.
      * 
-     * @param stepSize the step size with which to integrate the system (in picoseconds)
+     * @param stepSize the integration step size (in picoseconds)
+     * @param bodyIndices the index of the rigid body to which each atom belongs (0 = free atom)
      */
     explicit RigidBodyIntegrator(double stepSize, const std::vector<int>& bodyIndices);
+    /**
+     * Set the integration mode for rotations.
+     * 
+     * @param mode the mode for solving rotations: 0 = exact (default); n = NO-SQUISH with n steps
+     */
+    void setRotationMode(int mode);
+    /**
+     * Retrieve the employed integration mode for rotations.
+     */
+    int getRotationMode() const { return rotationMode; }
     /**
      * Advance a simulation through time by taking a series of time steps.
      * 
@@ -98,6 +109,7 @@ private:
     std::vector<int> bodyIndices;
     RigidBodySystem* bodySystem;
     OpenMM::Kernel kernel;
+    int rotationMode = 0;
 };
 
 } // namespace OpenMM

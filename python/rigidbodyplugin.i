@@ -24,6 +24,8 @@ namespace RigidBodyPlugin {
 class RigidBodyIntegrator : public OpenMM::Integrator {
 public:
     explicit RigidBodyIntegrator(double stepSize, const std::vector<int>& bodyIndices);
+    void setRotationMode(int mode);
+    int getRotationMode();
     void step(int steps);
 };
 

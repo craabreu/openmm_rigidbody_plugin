@@ -8,7 +8,6 @@
 #include "openmm/internal/ContextImpl.h"
 #include "openmm/kernels.h"
 #include "RigidBodyKernels.h"
-#include <string>
 
 using namespace RigidBodyPlugin;
 using namespace OpenMM;
@@ -21,6 +20,14 @@ RigidBodyIntegrator::RigidBodyIntegrator(double stepSize, const vector<int>& bod
     this->bodyIndices = bodyIndices;
 }
 
+void RigidBodyIntegrator::setRotationMode(int mode) {
+    if (mode < 0)
+        throw OpenMMException("Rotation mode cannot be negative");
+    if (owner != NULL)
+        throw OpenMMException("Cannot set rotation mode if integrator is bound to a context");
+    rotationMode = mode;
+}
+
 void RigidBodyIntegrator::initialize(ContextImpl& contextRef) {
     if (owner != NULL && &contextRef.getOwner() != owner)
         throw OpenMMException("This Integrator is already bound to a context");
@@ -28,7 +35,7 @@ void RigidBodyIntegrator::initialize(ContextImpl& contextRef) {
     owner = &contextRef.getOwner();
     const System *system = &contextRef.getSystem();
     if (system->getNumParticles() != bodyIndices.size())
-        throw OpenMMException("Number of body indices differs from that of particles in Context");
+        throw OpenMMException("Number of body indices differs from that of atoms in Context");
     bodySystem = new RigidBodySystem(*context, bodyIndices);
     kernel = context->getPlatform().createKernel(IntegrateRigidBodyStepKernel::Name(), contextRef);
     kernel.getAs<IntegrateRigidBodyStepKernel>().initialize(*system, *this);

@@ -142,15 +142,16 @@ inline __device__ void uniaxialRotationAxis3(BodyData& body, mixed dt) {
   NO_SQUISH rotation
 --------------------------------------------------------------------------------------------------*/
 
-inline __device__ void noSquishRotation(BodyData& body, mixed dt, int n) {
-    mixed halfDt = 0.5*dt;
+inline __device__ void noSquishRotation(BodyData& body, mixed dt) {
+    mixed dtByN = dt/NSPLIT;
+    mixed halfDtByN = 0.5*dtByN;
     bool axis3 = body.invI.z != zero;
-    for (int i = 0; i < n; i++) {
-        if (axis3) uniaxialRotationAxis3(body, halfDt);
-        uniaxialRotationAxis2(body, halfDt);
-        uniaxialRotationAxis1(body, dt);
-        uniaxialRotationAxis2(body, halfDt);
-        if (axis3) uniaxialRotationAxis3(body, halfDt);
+    for (int i = 0; i < NSPLIT; i++) {
+        if (axis3) uniaxialRotationAxis3(body, halfDtByN);
+        uniaxialRotationAxis2(body, halfDtByN);
+        uniaxialRotationAxis1(body, dtByN);
+        uniaxialRotationAxis2(body, halfDtByN);
+        if (axis3) uniaxialRotationAxis3(body, halfDtByN);
     }
 }
 
@@ -307,8 +308,7 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
 
         // Full-step translation and rotation
         body.r += body.v*dt;
-//        noSquishRotation(body, dt, 1);
-        exactRotation(body, dt);
+        ROTATION(body, dt);
 
         // Update of atomic positions and their displacements from the center of mass
         int loc = body.loc;

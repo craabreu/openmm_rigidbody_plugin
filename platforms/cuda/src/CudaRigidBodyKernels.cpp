@@ -180,6 +180,10 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
     cu.getPlatformData().initializeContexts(system);
     cu.setAsCurrent();
     map<string, string> defines;
+
+    int rotationMode = integrator.getRotationMode();
+    defines["ROTATION"] = rotationMode == 0 ? "exactRotation" : "noSquishRotation";
+    defines["NSPLIT"] = cu.intToString(rotationMode);
     CUmodule module = cu.createModule(CudaRigidBodyKernelSources::vectorOps +
                                       CudaRigidBodyKernelSources::elliptic +
                                       CudaRigidBodyKernelSources::rigidbodyintegrator,
