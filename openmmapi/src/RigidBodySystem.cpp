@@ -111,9 +111,17 @@ RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bod
         }
     }
 
-    cout<<"Number of bodies = "<<numBodies<<"\n"
-        <<"Number of actual atoms = "<<numActualAtoms<<"\n"
-        <<"Number of free atoms = "<<numFree<<"\n";            // REMOVER DEPOIS
+    cout<<"Number of bodies = "<<numBodies<<"\n"               // TEMPORARY
+        <<"Number of actual atoms = "<<numActualAtoms<<"\n"    // TEMPORARY
+        <<"Number of free atoms = "<<numFree<<"\n";            // TEMPORARY
+
+    for (int i = 0; i < system->getNumConstraints(); i++) {
+        int atom1, atom2;
+        double distance;
+        system->getConstraintParameters(i, atom1, atom2, distance);
+        if (bodyIndex[atom1] != 0 || bodyIndex[atom2] != 0)
+            throw OpenMMException("Constraints involving rigid-body atoms are not allowed");
+    }
 }
 
 /*--------------------------------------------------------------------------------------------------

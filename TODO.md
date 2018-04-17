@@ -3,5 +3,4 @@ TO DO LIST
 
 1. Implement a CMMotionRemover force for rigid bodies (or a CMMotionRemove option in integrator)
 2. Fix temperature computation considering the loss of degrees of freedom
-3. Check whether there are defined constraints involving rigid body atoms
-4. Check if forces and torque are correly computed before the simulation starts
+3. Allow an option for automatic elimination of constraints involving rigid-body atoms
