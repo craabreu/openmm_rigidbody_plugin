@@ -10,7 +10,7 @@ add_custom_command(
         -o "${WRAP_FILE}"
         "-I${OPENMM_DIR}/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/rigidbodyplugin.i"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/rigidbodyplugin.i" "${CMAKE_CURRENT_SOURCE_DIR}/forcefieldextension.i"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/rigidbodyplugin.i" "${CMAKE_CURRENT_SOURCE_DIR}/*.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 )
 

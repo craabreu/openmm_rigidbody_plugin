@@ -17,7 +17,9 @@ namespace std {
 #include "openmm/RPMDMonteCarloBarostat.h"
 %}
 
-%include "forcefieldextension.i"
+%include "imports.py"
+%include "forcefield.py"
+%include "statedatareporter.py"
 
 namespace RigidBodyPlugin {
 

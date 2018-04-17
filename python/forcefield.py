@@ -1,8 +1,4 @@
 %pythoncode %{
-import simtk.openmm.app as app
-import re
-
-
 def _coalescedSets(sets):
     new = []
     mixed = set()
