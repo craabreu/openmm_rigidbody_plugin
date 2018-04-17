@@ -163,7 +163,7 @@ inline __device__ void noSquishRotation(BodyData& body, mixed dt) {
 #define stairCase(x) ((x) > 0 ? (int)ceil((x) - 0.5) : (int)floor((x) + 0.5))
 #define PI           3.14159265358979323846264338328
 
-inline __device__ mixed Theta(mixed x, mixed n, mixed m) {
+inline __device__ mixed Omega(mixed x, mixed n, mixed m) {
     mixed x2 = x*x;
     return (-1.0/3.0)*n*x*x2*carlsonRJ(1.0 - x2, 1.0 - m*x2, 1.0, 1.0 + n*x2);
 }
@@ -184,9 +184,10 @@ inline __device__ void exactRotation(BodyData& body, mixed dt) {
     mixed l1 = r1*invI.y/(I.y - I.z);
     mixed l3 = r3*invI.y/(I.x - I.y);
     mixed lmin = min(l1, l3);
-    mixed3 a = make_mixed3(SIGN(w0.x)*sqrt(r1*invI.x/(I.x - I.z)),
+    mixed invI1mI3 = one/(I.x - I.z);
+    mixed3 a = make_mixed3(SIGN(w0.x)*sqrt(r1*invI.x*invI1mI3),
                            sqrt(lmin),
-                           SIGN(w0.z)*sqrt(r3*invI.z/(I.x - I.z)));
+                           SIGN(w0.z)*sqrt(r3*invI.z*invI1mI3));
     mixed m = lmin/max(l1, l3);
     mixed K = carlsonRF(zero, one - m, one);
     mixed inv2K = half/K;
@@ -205,7 +206,7 @@ inline __device__ void exactRotation(BodyData& body, mixed dt) {
         u0 = s0*K;
         i0 = 0;
     }
-    mixed wp = (I.z - I.x)*body.invI.y*a.x*a.z/a.y;
+    mixed wp = -body.invI.y*a.x*a.z/(a.y*invI1mI3);
     mixed u = wp*dt + u0;
     int jump = stairCase(u*inv2K) - i0;
     mixed sn, cn, dn, deltaF;
@@ -215,23 +216,23 @@ inline __device__ void exactRotation(BodyData& body, mixed dt) {
     eta /= one - eta;
     if (l1 < l3) {
         mixed C = sqrt(m + eta);
-        deltaF = u - u0 + SIGN(cn)*Theta(sn, eta, m) - SIGN(c0)*Theta(s0, eta, m)
+        deltaF = u - u0 + SIGN(cn)*Omega(sn, eta, m) - SIGN(c0)*Omega(s0, eta, m)
                          + (alpha/C)*(atan(C*sn/dn) - atan(C*s0*a.z/w0.z));
-        if (jump != 0) deltaF += jump*two*Theta(one, eta, m);
+        if (jump != 0) deltaF += jump*two*Omega(one, eta, m);
         Iw = I*a*make_mixed3(cn, sn, dn);
     }
     else {
         mixed k2eta = m*eta;
         mixed C = sqrt(one + k2eta);
-        deltaF = u - u0 + SIGN(cn)*Theta(sn, k2eta, m) - SIGN(c0)*Theta(s0, k2eta, m)
+        deltaF = u - u0 + SIGN(cn)*Omega(sn, k2eta, m) - SIGN(c0)*Omega(s0, k2eta, m)
                         + (alpha/C)*(atan(C*sn/cn) - atan(C*s0/c0));
-        if (jump != 0) deltaF += jump*(two*Theta(one, k2eta, m) + (alpha/C)*PI);
+        if (jump != 0) deltaF += jump*(two*Omega(one, k2eta, m) + (alpha/C)*PI);
         Iw = I*a*make_mixed3(dn, sn, cn);
     }
     deltaF *= one + eta;
-    mixed phi = (Lsq*(u - u0) + r3*deltaF)/(two*L*I.x*wp);
-    mixed4 z = make_mixed4( Iw.z, Iw.y, L - Iw.x,     zero)*cos(phi) +
-               make_mixed4(-Iw.y, Iw.z,     zero, L - Iw.x)*sin(phi);
+    mixed theta = (Lsq*(u - u0) + r3*deltaF)/(two*L*I.x*wp);
+    mixed4 z = make_mixed4( Iw.z, Iw.y, L - Iw.x, zero)*cos(theta) +
+               make_mixed4(-Iw.y, Iw.z, zero, L - Iw.x)*sin(theta);
     body.q = normalize(z*dot(z0, body.q) + C(z, Ct(z0, body.q)));
     body.pi = B(body.q, Iw*two);
 }
