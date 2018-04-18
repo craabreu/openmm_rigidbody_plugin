@@ -74,18 +74,18 @@ RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bod
     for (auto index : bodyIndex)
         numBodies = std::max(numBodies, index);
 
-    const System *system = &context->getSystem();
-    int numAtoms = system->getNumParticles();
+    const System& system = context->getSystem();
+    int numAtoms = system.getNumParticles();
     numActualAtoms = numAtoms;
     for (int i = 0; i < numAtoms; i++)
-        if (system->isVirtualSite(i))
+        if (system.isVirtualSite(i))
             numActualAtoms--;
     atomIndex.resize(numActualAtoms);
 
     numFree = 0;
     body.resize(numBodies);
     for (int i = 0; i < numAtoms; i++)
-        if (!system->isVirtualSite(i)) {
+        if (!system.isVirtualSite(i)) {
             int ibody = bodyIndex[i];
             if (ibody == 0)
                 atomIndex[numFree++] = i;
@@ -115,10 +115,10 @@ RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bod
         <<"Number of actual atoms = "<<numActualAtoms<<"\n"    // TEMPORARY
         <<"Number of free atoms = "<<numFree<<"\n";            // TEMPORARY
 
-    for (int i = 0; i < system->getNumConstraints(); i++) {
+    for (int i = 0; i < system.getNumConstraints(); i++) {
         int atom1, atom2;
         double distance;
-        system->getConstraintParameters(i, atom1, atom2, distance);
+        system.getConstraintParameters(i, atom1, atom2, distance);
         if (bodyIndex[atom1] != 0 || bodyIndex[atom2] != 0)
             throw OpenMMException("Constraints involving rigid-body atoms are not allowed");
     }
@@ -129,11 +129,11 @@ RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bod
 --------------------------------------------------------------------------------------------------*/
 
 void RigidBodySystem::update(bool geometry, bool velocities) {
-    const System* system = &context->getSystem();
-    int N = system->getNumParticles();
+    const System& system = context->getSystem();
+    int N = system.getNumParticles();
     vector<double> M(N);
     for (int i = 0; i < N; i++)
-        M[i] = system->getParticleMass(i);
+        M[i] = system.getParticleMass(i);
     if (geometry) {
         vector<Vec3> R(N), F(N);
         context->getPositions(R);

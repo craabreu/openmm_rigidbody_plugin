@@ -75,7 +75,7 @@ typedef struct {
 
 class CudaIntegrateRigidBodyStepKernel::ReorderListener : public CudaContext::ReorderListener {
 public:
-    ReorderListener(CudaContext& cu, RigidBodySystem& bodySystem, CudaArray& atomLocation) :
+    ReorderListener(CudaContext& cu, const RigidBodySystem& bodySystem, CudaArray& atomLocation) :
         cu(cu), bodySystem(bodySystem), atomLocation(atomLocation) {
     }
     void execute() {
@@ -115,7 +115,7 @@ public:
     }
 private:
     CudaContext& cu;
-    RigidBodySystem& bodySystem;
+    const RigidBodySystem& bodySystem;
     CudaArray& atomLocation;
 };
 
@@ -196,11 +196,11 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
     bool mixedOrDouble = cu.getUseMixedPrecision() || cu.getUseDoublePrecision();
     size_t bodyDataSize = mixedOrDouble ? sizeof(bodyDataDouble) : sizeof(bodyDataFloat);
 
-    RigidBodySystem* bodySystem = integrator.getRigidBodySystem();
-    numBodies = bodySystem->getNumBodies();
-    numFree = bodySystem->getNumFree();
-    int numActualAtoms = bodySystem->getNumActualAtoms();
-    int numBodyAtoms = bodySystem->getNumBodyAtoms();
+    const RigidBodySystem& bodySystem = integrator.getRigidBodySystem();
+    numBodies = bodySystem.getNumBodies();
+    numFree = bodySystem.getNumFree();
+    int numActualAtoms = bodySystem.getNumActualAtoms();
+    int numBodyAtoms = bodySystem.getNumBodyAtoms();
 
     // Compute padded numbers:
     int TileSize = cu.TileSize;
@@ -227,10 +227,10 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
         invOrder[order[i]] = i;
     int* location = (int*) pinnedBuffer;
     for (int i = 0; i < numActualAtoms; i++)
-        location[i] = invOrder[bodySystem->getAtomIndex(i)];
+        location[i] = invOrder[bodySystem.getAtomIndex(i)];
     atomLocation.upload(location);
 
-    reorderListener = new ReorderListener(cu, *bodySystem, atomLocation);
+    reorderListener = new ReorderListener(cu, bodySystem, atomLocation);
     cu.addReorderListener(reorderListener);
 
     // Allocate arrays
@@ -252,7 +252,7 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
         if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
             bodyDataDouble* data = (bodyDataDouble*) pinnedBuffer;
             for (int i = 0; i < numBodies; i++) {
-                RigidBody& b = *bodySystem.getRigidBody(i);
+                RigidBody b = bodySystem.getRigidBody(i);
                 bodyDataDouble& body = data[i];
                 body.N = b.N;
                 body.loc = b.loc;
@@ -276,7 +276,7 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
         else {
             bodyDataFloat* data = (bodyDataFloat*) pinnedBuffer;
             for (int i = 0; i < numBodies; i++) {
-                RigidBody& b = *bodySystem.getRigidBody(i);
+                RigidBody b = bodySystem.getRigidBody(i);
                 bodyDataFloat& body = data[i];
                 body.N = b.N;
                 body.loc = b.loc;

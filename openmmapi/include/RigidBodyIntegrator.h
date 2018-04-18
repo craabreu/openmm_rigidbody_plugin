@@ -77,7 +77,7 @@ public:
     /**
      * Pointer to the system of rigid bodies 
      */
-     RigidBodySystem* getRigidBodySystem() const { return bodySystem; }
+     RigidBodySystem& getRigidBodySystem() const { return *bodySystem; }
 protected:
     /**
      * This will be called by the Context when it is created.  It informs the Integrator
