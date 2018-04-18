@@ -108,9 +108,9 @@ class ForceField(app.ForceField):
             if bodyIndices[i] != 0:
                 next[i] = head[bodyIndices[i]-1]
                 head[bodyIndices[i]-1] = i
-        pairs = []
-        for atom in filter(lambda x: x != -1, head):
-            i = atom
+        pairs = list()
+        for k in filter(lambda x: x != -1, head):
+            i = k
             while (i != -1):
                 j = next[i]
                 while (j != -1):
@@ -118,6 +118,21 @@ class ForceField(app.ForceField):
                     j = next[j]
                 i = next[i]
         return pairs
+
+    def removeConstraints(self, system, bodyIndices):
+        for i in reversed(range(system.getNumConstraints())):
+            (atom1, atom2, distance) = system.getConstraintParameters(i)
+            if bodyIndices[atom1] != 0 or bodyIndices[atom2] != 0:
+                system.removeConstraint(i)
+
+    def removeForces(self, system, bodyIndices):
+        def isNonbonded(force):
+            return isinstance(force, (mm.NonbondedForce, mm.CustomNonbondedForce))
+        forces = [system.getForce(i) for i in range(system.getNumForces())]
+        nonbondedForces = [f for f in forces if isNonbonded(f)]
+        for (i, j) in self._intraBodyPairs(bodyIndices):
+            for force in nonbondedForces:
+                force.addException(i, j, 0, 1, 0, replace=True)
 
     def createSystem(self, topology, **kwargs):
         """Construct an OpenMM System representing a Topology with this force field.
@@ -144,34 +159,19 @@ class ForceField(app.ForceField):
         -------
         system : System
             the newly created System
-
         bodyIndices : list(int)
-            a list with the index of the rigid body to which each atom
+            a list with the index of each atom's rigid body (index=0 for free atoms)
         
         """
         mergeList = kwargs.pop('mergeList', None)
         removeForces = kwargs.pop('removeForces', False)
         removeConstraints = kwargs.pop('removeConstraints', False)
-
         system = super(ForceField, self).createSystem(topology, **kwargs)
         bodyIndices = self.resolveBodies(topology, merge=mergeList)
-
         if removeConstraints:
-            for i in reversed(range(system.getNumConstraints())):
-                (atom1, atom2, distance) = system.getConstraintParameters(i)
-                if bodyIndices[atom1] != 0 or bodyIndices[atom2] != 0:
-                    system.removeConstraint(i)
-
+            self.removeConstraints(system, bodyIndices)
         if removeForces:
-            def isNonbonded(force):
-                return isinstance(force, (mm.NonbondedForce, mm.CustomNonbondedForce))
-
-            forces = [system.getForce(i) for i in range(system.getNumForces())]
-            nonbondedForces = [f for f in forces if isNonbonded(f)]
-            for (i, j) in self._intraBodyPairs(bodyIndices):
-                for force in nonbondedForces:
-                    force.addException(i, j, 0, 1, 0, replace=True)
-
+            self.removeForces(system, bodyIndices)
         return (system, bodyIndices)
 
 %}
