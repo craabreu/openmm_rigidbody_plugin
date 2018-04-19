@@ -44,32 +44,6 @@ using namespace RigidBodyPlugin;
 using namespace OpenMM;
 using namespace std;
 
-typedef struct {
-    int    N;     // number of atoms
-    int    loc;   // pointer to set of atoms
-    float  invm;  // inverse mass
-    float3 invI;  // inverse principal moments of inertia
-    float3 r;     // center-of-mass position
-    float3 v;     // center-of-mass velocity
-    float3 F;     // resultant force
-    float4 q;     // orientation quaternion
-    float4 pi;    // quaternion-conjugated momentum
-    float4 Ctau;  // quaternion-frame resultant torque
-} bodyDataFloat;
-
-typedef struct {
-    int     N;     // number of atoms
-    int     loc;   // pointer to set of atoms
-    double  invm;  // inverse mass
-    double3 invI;  // inverse principal moments of inertia
-    double3 r;     // center-of-mass position
-    double3 v;     // center-of-mass velocity
-    double3 F;     // resultant force
-    double4 q;     // orientation quaternion
-    double4 pi;    // quaternion-conjugated momentum
-    double4 Ctau;  // quaternion-frame resultant torque
-} bodyDataDouble;
-
 /*--------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------*/
 
@@ -194,7 +168,7 @@ void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
     kineticEnergyKernel = cu.getKernel(module, "computeKineticEnergies");
 
     bool mixedOrDouble = cu.getUseMixedPrecision() || cu.getUseDoublePrecision();
-    size_t bodyDataSize = mixedOrDouble ? sizeof(bodyDataDouble) : sizeof(bodyDataFloat);
+    size_t bodyDataSize = mixedOrDouble ? sizeof(bodyType<double,double3,double4>) : sizeof(bodyType<float,float3,float4>);
 
     const RigidBodySystem& bodySystem = integrator.getRigidBodySystem();
     numBodies = bodySystem.getNumBodies();
@@ -250,10 +224,11 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
     if (numBodies != 0) {
         int numBodyAtoms = bodySystem.getNumBodyAtoms();
         if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
-            bodyDataDouble* data = (bodyDataDouble*) pinnedBuffer;
+            using bodyDouble = bodyType<double,double3,double4>;
+            bodyDouble* data = (bodyDouble*) pinnedBuffer;
             for (int i = 0; i < numBodies; i++) {
                 RigidBody b = bodySystem.getRigidBody(i);
-                bodyDataDouble& body = data[i];
+                bodyDouble& body = data[i];
                 body.N = b.N;
                 body.loc = b.loc;
                 body.invm = b.invMass;
@@ -274,10 +249,11 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
             bodyFixedPos.upload(d);
         }
         else {
-            bodyDataFloat* data = (bodyDataFloat*) pinnedBuffer;
+            using bodyFloat = bodyType<float,float3,float4>;
+            bodyFloat* data = (bodyFloat*) pinnedBuffer;
             for (int i = 0; i < numBodies; i++) {
                 RigidBody b = bodySystem.getRigidBody(i);
-                bodyDataFloat& body = data[i];
+                bodyFloat& body = data[i];
                 body.N = b.N;
                 body.loc = b.loc;
                 body.invm = b.invMass;

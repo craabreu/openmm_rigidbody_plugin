@@ -40,4 +40,19 @@ public:
     Vec3   invMoI;        // Principal moments of inertia and their inverses
 };
 
+template<class real, class real3, class real4>
+class bodyType {
+public:
+    int   N;     // number of atoms
+    int   loc;   // pointer to set of atoms
+    real  invm;  // inverse mass
+    real3 invI;  // inverse principal moments of inertia
+    real3 r;     // center-of-mass position
+    real3 v;     // center-of-mass velocity
+    real3 F;     // resultant force
+    real4 q;     // orientation quaternion
+    real4 pi;    // quaternion-conjugated momentum
+    real4 Ctau;  // quaternion-frame resultant torque
+};
+
 }
