@@ -51,6 +51,7 @@ OpenCLIntegrateRigidBodyStepKernel::~OpenCLIntegrateRigidBodyStepKernel() {
 }
 
 void OpenCLIntegrateRigidBodyStepKernel::initialize(const System& system, const RigidBodyIntegrator& integrator) {
+    throw OpenMMException("This version of Rigid Body Plugin does not support OpenCL Platform");
     cl.getPlatformData().initializeContexts(system);
     cl::Program program = cl.createProgram(OpenCLRigidBodyKernelSources::rigidbodyintegrator, "");
     kernel1 = cl::Kernel(program, "integrateRigidBodyPart1");

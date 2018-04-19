@@ -102,6 +102,7 @@ ReferenceIntegrateRigidBodyStepKernel::~ReferenceIntegrateRigidBodyStepKernel() 
 }
 
 void ReferenceIntegrateRigidBodyStepKernel::initialize(const System& system, const RigidBodyIntegrator& integrator) {
+    throw OpenMMException("This version of Rigid Body Plugin does not support Reference/CPU Platform");
     int numParticles = system.getNumParticles();
     masses.resize(numParticles);
     for (int i = 0; i < numParticles; ++i)
