@@ -15,7 +15,11 @@ class StateDataReporter(app.StateDataReporter):
 
     def _initializeConstants(self, simulation):
         super(StateDataReporter, self)._initializeConstants(simulation)
-        if self._temperature:
-            print(self._dof)
+        if self._temperature and isinstance(simulation.integrator, RigidBodyIntegrator):
+            self.dof = simulation.integrator.getRigidBodySystem().getNumDOF()
+            system = simulation.system
+            forces = [system.getForce(i) for i in range(system.getNumForces())]
+            if any(isinstance(f, mm.CMMotionRemover) for f in forces):
+                dof -= 3
 
 %}

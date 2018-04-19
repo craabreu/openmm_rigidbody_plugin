@@ -23,11 +23,18 @@ namespace std {
 
 namespace RigidBodyPlugin {
 
+class RigidBodySystem {
+public:
+    explicit RigidBodySystem(ContextImpl& contextRef, const vector<int>& bodyIndices);
+    int getNumDOF() const {return numDOF; }
+};
+
 class RigidBodyIntegrator : public OpenMM::Integrator {
 public:
     explicit RigidBodyIntegrator(double stepSize, const std::vector<int>& bodyIndices);
     void setRotationMode(int mode);
     int getRotationMode();
+    RigidBodySystem getRigidBodySystem();
     void step(int steps);
 };
 

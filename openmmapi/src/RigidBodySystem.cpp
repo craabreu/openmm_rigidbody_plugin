@@ -11,6 +11,7 @@
 #include "internal/eigenDecomposition.h"
 #include <vector>
 #include <cmath>
+#include <algorithm>
 
 #include <iostream> // TEMPORARY
 
@@ -25,40 +26,25 @@ using std::vector;
 --------------------------------------------------------------------------------------------------*/
 
 vector<int> cleanBodyIndices(const vector<int>& bodyIndices) {
-    int size = bodyIndices.size();
-    vector<int> index(size, 0), saved(size, 0), amount(size, 0), first(size, 0);
-    int nsaved = 0;
-    for (int i = 0; i < size; i++) {
-        int ibody = bodyIndices[i];
-        if (ibody > 0) {
-            int j;
-            int found = 0;
-            for (j = 0; j < nsaved; j++) {
-                found = saved[j] == ibody;
-                if (found) break;
-            }
-            if (found) {
-                amount[j]++;
-                index[i] = j+1;
-                index[first[j]] = j+1;
-            }
-            else {
-                amount[nsaved] = 1;
-                saved[nsaved] = ibody;
-                first[nsaved] = i;
-                index[i] = 0;
-                nsaved++;
+    int listSize = bodyIndices.size();
+    int maxIndex = *std::max_element(std::begin(bodyIndices), std::end(bodyIndices));
+    vector<int> head(maxIndex, -1), next(listSize, -1), index(listSize, 0);
+    for (int i = 0; i < listSize; i++)
+        if (bodyIndices[i] > 0) {
+            next[i] = head[bodyIndices[i]-1];
+            head[bodyIndices[i]-1] = i;
+        }
+    int body = 0;
+    for (int i = 0; i < maxIndex; i++) {
+        int j = head[i];
+        if (j != -1) {
+            body++;
+            while (j != -1) {
+                index[j] = body;
+                j = next[j];
             }
         }
-        else
-            index[i] = 0;
     }
-    int n = 0;
-    for (int i = 0; i < nsaved; i++)
-        saved[i] = amount[i] > 1 ? ++n : 0;
-    for (int i = 0; i < size; i++)
-        if (index[i] > 0)
-            index[i] = saved[index[i]-1];
     return index;
 }
 
@@ -138,8 +124,11 @@ void RigidBodySystem::update(bool geometry, bool velocities) {
         vector<Vec3> R(N), F(N);
         context->getPositions(R);
         context->getForces(F);
-        for (auto& b : body)
+        numDOF = numFree - system.getNumConstraints();
+        for (auto& b : body) {
             b.updateGeometry(R, F, M);
+            numDOF += b.dof;
+        }
     }
     if (velocities) {
         vector<Vec3> V(N);

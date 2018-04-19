@@ -19,9 +19,9 @@ namespace RigidBodyPlugin {
 
 class RigidBodySystem {
 public:
-    RigidBodySystem(ContextImpl& contextRef, const vector<int>& bodyIndices);
-
+    explicit RigidBodySystem(ContextImpl& contextRef, const vector<int>& bodyIndices);
     void update(bool geometry, bool velocities);
+    int getNumDOF() const {return numDOF; }
     int getNumFree() const { return numFree; }
     int getNumBodies() const { return numBodies; }
     int getNumActualAtoms() const { return numActualAtoms; }
@@ -39,6 +39,7 @@ private:
     int numBodies;
     int numActualAtoms;
     int numBodyAtoms;
+    int numDOF;
 };
 
 }
