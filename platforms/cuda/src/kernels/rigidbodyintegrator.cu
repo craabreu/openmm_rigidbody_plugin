@@ -408,6 +408,7 @@ extern "C" __global__ void computeKineticEnergies(int numFree,
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
         BodyData &body = bodyData[k];
         mixed3 L = Bt(body.q, body.pi)*half;
-        bodyKE[k] = make_mixed2(dot(body.v/body.invm, body.v), dot(L, L*body.invI))*half;
+        bodyKE[k].x = dot(body.v/body.invm, body.v)*half;
+        bodyKE[k].y = dot(L, L*body.invI)*half;
     }
 }
