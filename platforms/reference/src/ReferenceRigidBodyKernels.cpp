@@ -74,7 +74,7 @@ void ReferenceIntegrateRigidBodyStepKernel::initialize(ContextImpl& context, con
         hasMass[i] = mass != 0.0;
         invMass[i] = hasMass[i] ? 1.0/mass : 0.0;
     }
-    posDelta.resize(numAtoms);
+    newPos.resize(numAtoms);
 }
 
 void ReferenceIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySystem) {
@@ -85,7 +85,9 @@ void ReferenceIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const 
     double dt = integrator.getStepSize();
     double halfDt = 0.5*dt;
     double tol = integrator.getConstraintTolerance();
+
     vector<Vec3> savedPos;
+    ReferenceConstraints& constraints = extractConstraints(context);
 
     vector<Vec3>& R = extractPositions(context);
     vector<Vec3>& V = extractVelocities(context);
@@ -98,15 +100,15 @@ void ReferenceIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const 
             int i = bodySystem.getAtomIndex(k);
             if (hasMass[i]) {
                 V[i] += F[i]*invMass[i]*halfDt;
-                posDelta[i] = V[i]*dt;
-                savedPos[k] = R[i] + posDelta[i];
+                newPos[i] = R[i] + V[i]*dt;
+                savedPos[k] = newPos[i];
             }
         }
-        context.applyConstraints(tol);
+        constraints.apply(R, newPos, invMass, tol);
         for (int k = 0; k < numFree; k++) {
             int i = bodySystem.getAtomIndex(k);
             if (hasMass[i])
-                R[i] += posDelta[i];
+                R[i] = newPos[i];
         }
     }
 
@@ -122,7 +124,7 @@ void ReferenceIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const 
             if (hasMass[i])
                 V[i] += F[i]*invMass[i]*halfDt + (R[i] - savedPos[k])*invDt;
         }
-        context.applyVelocityConstraints(tol);
+        constraints.applyToVelocities(R, V, invMass, tol);
     }
 
     data.time += dt;

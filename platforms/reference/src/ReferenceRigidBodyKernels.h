@@ -82,7 +82,7 @@ private:
     RigidBodySystem bodySystem;
     std::vector<bool> hasMass;
     std::vector<double> invMass;
-    std::vector<Vec3> posDelta;
+    std::vector<Vec3> newPos;
 };
 
 } // namespace RigidBodyPlugin
