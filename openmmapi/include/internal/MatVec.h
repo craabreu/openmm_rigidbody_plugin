@@ -116,6 +116,9 @@ public:
     Quat C(Vec3 x) const;
     Vec3 Bt(Quat y) const;
     Vec3 Ct(Quat y) const;
+    Quat B1() const;
+    Quat B2() const;
+    Quat B3() const;
     Vec3 A(Vec3 x) const;
     Vec3 At(Vec3 x) const;
 private:

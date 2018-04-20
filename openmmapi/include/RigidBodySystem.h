@@ -21,6 +21,7 @@ class RigidBodySystem {
 public:
     explicit RigidBodySystem(ContextImpl& contextRef, const vector<int>& bodyIndices);
     void update(bool geometry, bool velocities);
+    void moveBodies(double dt, vector<Vec3>& R, vector<Vec3>& V);
     int getNumDOF() const {return numDOF; }
     int getNumFree() const { return numFree; }
     int getNumBodies() const { return numBodies; }

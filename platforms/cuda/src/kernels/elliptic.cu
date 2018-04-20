@@ -238,3 +238,11 @@ inline __device__ mixed carlsonRJ(mixed x, mixed y, mixed z, mixed p)
   else
     return NaN;
 }
+
+/*--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------*/
+
+inline __device__ mixed Omega(mixed x, mixed n, mixed m) {
+    mixed x2 = x*x;
+    return (-1.0/3.0)*n*x*x2*carlsonRJ(1.0 - x2, 1.0 - m*x2, 1.0, 1.0 + n*x2);
+}

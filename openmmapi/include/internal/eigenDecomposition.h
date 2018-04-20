@@ -16,8 +16,8 @@
 // License along with this library; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 // ----------------------------------------------------------------------------
-#ifndef __DIAGONALIZATION_H
-#define __DIAGONALIZATION_H
+#ifndef __EIGENDECOMPOSITION_H
+#define __EIGENDECOMPOSITION_H
 
 #include "internal/MatVec.h"
 #include "openmm/Vec3.h"

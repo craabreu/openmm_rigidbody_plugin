@@ -97,10 +97,6 @@ RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bod
         }
     }
 
-    cout<<"Number of bodies = "<<numBodies<<"\n"               // TEMPORARY
-        <<"Number of actual atoms = "<<numActualAtoms<<"\n"    // TEMPORARY
-        <<"Number of free atoms = "<<numFree<<"\n";            // TEMPORARY
-
     for (int i = 0; i < system.getNumConstraints(); i++) {
         int atom1, atom2;
         double distance;
@@ -126,7 +122,7 @@ void RigidBodySystem::update(bool geometry, bool velocities) {
         context->getForces(F);
         numDOF = numFree - system.getNumConstraints();
         for (auto& b : body) {
-            b.updateGeometry(R, F, M);
+            b.buildGeometry(R, F, M);
             numDOF += b.dof;
         }
     }
@@ -134,6 +130,19 @@ void RigidBodySystem::update(bool geometry, bool velocities) {
         vector<Vec3> V(N);
         context->getVelocities(V);
         for (auto& b : body)
-            b.updateVelocities(V, M);
+            b.buildDynamics(V, M);
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Move all rigid bodies.
+--------------------------------------------------------------------------------------------------*/
+
+void RigidBodySystem::moveBodies(double dt, vector<Vec3>& R, vector<Vec3>& V) {
+    for (auto& b : body) {
+//        b.rotate(dt);
+        b.uniaxialRotationAxis1(dt);
+        b.updateAtomicPositions(R);
+        b.updateAtomicVelocities(V);
     }
 }

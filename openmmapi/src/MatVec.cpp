@@ -521,6 +521,23 @@ Vec3 Quat::Ct(Quat y) const {
                 -data[3]*y[0] - data[2]*y[1] + data[1]*y[2] + data[0]*y[3]);
 }
 
+// Premultiplication by permutation matrices:
+
+Quat Quat::B1() const {
+    const Quat& q = *this;
+    return Quat(-q[1],  q[0],  q[3], -q[2]);
+}
+
+Quat Quat::B2() const {
+    const Quat& q = *this;
+    return Quat(-q[2], -q[3],  q[0],  q[1]);
+}
+
+Quat Quat::B3() const {
+    const Quat& q = *this;
+    return Quat(-q[3],  q[2], -q[1],  q[0]);
+}
+
 Vec3 Quat::A(Vec3 x) const {
     const Quat& q = *this;
     return q.Bt(q.C(x));

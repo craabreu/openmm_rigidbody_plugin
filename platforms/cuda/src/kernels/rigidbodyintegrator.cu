@@ -163,11 +163,6 @@ inline __device__ void noSquishRotation(BodyData& body, mixed dt) {
 #define stairCase(x) ((x) > 0 ? (int)ceil((x) - 0.5) : (int)floor((x) + 0.5))
 #define PI           3.14159265358979323846264338328
 
-inline __device__ mixed Omega(mixed x, mixed n, mixed m) {
-    mixed x2 = x*x;
-    return (-1.0/3.0)*n*x*x2*carlsonRJ(1.0 - x2, 1.0 - m*x2, 1.0, 1.0 + n*x2);
-}
-
 inline __device__ void exactRotation(BodyData& body, mixed dt) {
     mixed3& invI = body.invI;
     mixed3 I = make_mixed3(one/invI.x, one/invI.y, invI.z != zero ? one/invI.z : zero);

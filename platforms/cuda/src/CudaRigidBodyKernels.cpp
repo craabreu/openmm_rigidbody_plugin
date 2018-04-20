@@ -232,7 +232,7 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 body.N = b.N;
                 body.loc = b.loc;
                 body.invm = b.invMass;
-                body.invI = make_double3(b.invMoI[0], b.invMoI[1], b.invMoI[2]);
+                body.invI = make_double3(b.invI[0], b.invI[1], b.invI[2]);
                 body.r = make_double3(b.rcm[0], b.rcm[1], b.rcm[2]);
                 body.v = make_double3(b.pcm[0]/b.mass, b.pcm[1]/b.mass, b.pcm[2]/b.mass);
                 body.F = make_double3(b.force[0], b.force[1], b.force[2]);
@@ -257,7 +257,7 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 body.N = b.N;
                 body.loc = b.loc;
                 body.invm = b.invMass;
-                body.invI = make_float3(b.invMoI[0], b.invMoI[1], b.invMoI[2]);
+                body.invI = make_float3(b.invI[0], b.invI[1], b.invI[2]);
                 body.r = make_float3(b.rcm[0], b.rcm[1], b.rcm[2]);
                 body.v = make_float3(b.pcm[0]/b.mass, b.pcm[1]/b.mass, b.pcm[2]/b.mass);
                 body.F = make_float3(b.force[0], b.force[1], b.force[2]);
