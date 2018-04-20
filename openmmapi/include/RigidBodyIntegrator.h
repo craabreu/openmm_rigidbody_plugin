@@ -77,7 +77,7 @@ public:
     /**
      * Pointer to the system of rigid bodies 
      */
-     RigidBodySystem& getRigidBodySystem() const { return *bodySystem; }
+     const RigidBodySystem& getRigidBodySystem() const { return bodySystem; }
 protected:
     /**
      * This will be called by the Context when it is created.  It informs the Integrator
@@ -107,7 +107,7 @@ protected:
     double computeKineticEnergy();
 private:
     std::vector<int> bodyIndices;
-    RigidBodySystem* bodySystem;
+    RigidBodySystem bodySystem;
     OpenMM::Kernel kernel;
     int rotationMode = 0;
 };

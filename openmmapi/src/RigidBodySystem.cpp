@@ -52,15 +52,14 @@ vector<int> cleanBodyIndices(const vector<int>& bodyIndices) {
   Create a data structure for the system of rigid bodies and free atoms.
 --------------------------------------------------------------------------------------------------*/
 
-RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bodyIndices) {
-    context = &contextRef;
+void RigidBodySystem::initialize(ContextImpl& context, const vector<int>& bodyIndices) {
     bodyIndex = cleanBodyIndices(bodyIndices);
 
     numBodies = 0;
     for (auto index : bodyIndex)
         numBodies = std::max(numBodies, index);
 
-    const System& system = context->getSystem();
+    const System& system = context.getSystem();
     int numAtoms = system.getNumParticles();
     numActualAtoms = numAtoms;
     for (int i = 0; i < numAtoms; i++)
@@ -110,16 +109,16 @@ RigidBodySystem::RigidBodySystem(ContextImpl& contextRef, const vector<int>& bod
   Update the kinematic properties of all rigid bodies.
 --------------------------------------------------------------------------------------------------*/
 
-void RigidBodySystem::update(bool geometry, bool velocities) {
-    const System& system = context->getSystem();
+void RigidBodySystem::update(ContextImpl& context, bool geometry, bool velocities) {
+    const System& system = context.getSystem();
     int N = system.getNumParticles();
     vector<double> M(N);
     for (int i = 0; i < N; i++)
         M[i] = system.getParticleMass(i);
     if (geometry) {
         vector<Vec3> R(N), F(N);
-        context->getPositions(R);
-        context->getForces(F);
+        context.getPositions(R);
+        context.getForces(F);
         numDOF = numFree - system.getNumConstraints();
         for (auto& b : body) {
             b.buildGeometry(R, F, M);
@@ -128,21 +127,60 @@ void RigidBodySystem::update(bool geometry, bool velocities) {
     }
     if (velocities) {
         vector<Vec3> V(N);
-        context->getVelocities(V);
+        context.getVelocities(V);
         for (auto& b : body)
             b.buildDynamics(V, M);
     }
 }
 
 /*--------------------------------------------------------------------------------------------------
-  Move all rigid bodies.
+  Copy structure from another rigid body system.
 --------------------------------------------------------------------------------------------------*/
 
-void RigidBodySystem::moveBodies(double dt, vector<Vec3>& R, vector<Vec3>& V) {
+void RigidBodySystem::copy(const RigidBodySystem& bodySystem) {
+    numFree = bodySystem.numFree;
+    numBodies = bodySystem.numBodies;
+    numActualAtoms = bodySystem.numActualAtoms;
+    numBodyAtoms = bodySystem.numBodyAtoms;
+    numDOF = bodySystem.numDOF;
+    bodyIndex = bodySystem.bodyIndex;
+    atomIndex = bodySystem.atomIndex;
+    bodyFixedPositions = bodySystem.bodyFixedPositions;
+    body = bodySystem.body;
     for (auto& b : body) {
-//        b.rotate(dt);
-        b.uniaxialRotationAxis1(dt);
+        b.atom = &atomIndex[numFree+b.loc];
+        b.d = &bodyFixedPositions[b.loc];
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
+  First part of rigid body NVE integration step.
+--------------------------------------------------------------------------------------------------*/
+
+void RigidBodySystem::integratePart1(double dt, vector<Vec3>& R) {
+    double halfDt = 0.5*dt;
+    for (auto& b : body) {
+        b.pcm += b.force*halfDt;
+        b.pi += b.torque*dt;
+        b.rcm += b.pcm*(b.invMass*dt);
+        b.rotate(dt);
         b.updateAtomicPositions(R);
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Second part of rigid body NVE integration step.
+--------------------------------------------------------------------------------------------------*/
+
+void RigidBodySystem::integratePart2(double dt, const vector<Vec3>& F, vector<Vec3>& V) {
+    double halfDt = 0.5*dt;
+    bodyKE[0] = bodyKE[1] = 0.0;
+    for (auto& b : body) {
+        b.forceAndTorque(F);
+        b.pcm += b.force*halfDt;
+        b.pi += b.torque*dt;
         b.updateAtomicVelocities(V);
+        bodyKE[0] += b.Kt;
+        bodyKE[1] += b.Kr;
     }
 }

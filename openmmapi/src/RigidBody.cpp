@@ -76,7 +76,7 @@ void RigidBody::buildGeometry(vector<Vec3>& R, vector<Vec3>& F, vector<double>& 
     invMass = 1.0/mass;
 
     // Center-of-mass displacements
-    vector<Vec3> delta(N);
+    delta.resize(N);
     vector<double> d2(N);
     for (int j = 0; j < N; j++) {
         delta[j] = R[atom[j]] - rcm;
@@ -112,14 +112,7 @@ void RigidBody::buildGeometry(vector<Vec3>& R, vector<Vec3>& F, vector<double>& 
         d[j] = A*delta[j];
 
     // Resultant force and quaternion-frame resultant torque
-    force = Vec3();
-    Vec3 tau;
-    for (int j = 0; j < N; j++) {
-        int i = atom[j];
-        force += F[i];
-        tau += delta[j].cross(F[i]);
-    }
-    torque = q.C(tau);
+    forceAndTorque(F);
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -151,8 +144,10 @@ void RigidBody::buildDynamics(vector<Vec3>& V, vector<double>& M) {
 --------------------------------------------------------------------------------------------------*/
 
 void RigidBody::updateAtomicPositions(vector<Vec3>& R) {
-    for (int j = 0; j < N; j++)
-        R[atom[j]] = rcm + q.At(d[j]);
+    for (int j = 0; j < N; j++) {
+        delta[j] = q.At(d[j]);
+        R[atom[j]] = rcm + delta[j];
+    }
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -160,10 +155,29 @@ void RigidBody::updateAtomicPositions(vector<Vec3>& R) {
 --------------------------------------------------------------------------------------------------*/
 
 void RigidBody::updateAtomicVelocities(vector<Vec3>& V) {
-    Vec3 omega = Diag3(invI)*q.Bt(pi)*0.5;
+    Vec3 L = q.Bt(pi)*0.5;
+    Vec3 omega = Diag3(invI)*L;
+    Vec3 spaceFixedOmega = q.At(omega);
     Vec3 vcm = pcm*invMass;
+    Kt = pcm.dot(vcm)*0.5;
+    Kr = L.dot(omega)*0.5;
     for (int j = 0; j < N; j++)
-        V[atom[j]] = vcm + q.At(omega.cross(d[j]));
+        V[atom[j]] = vcm + spaceFixedOmega.cross(delta[j]);
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Update resultant force and torque exerted on the body.
+--------------------------------------------------------------------------------------------------*/
+
+void RigidBody::forceAndTorque(const vector<Vec3>& F) {
+    force = Vec3();
+    Vec3 tau;
+    for (int j = 0; j < N; j++) {
+        int i = atom[j];
+        force += F[i];
+        tau += delta[j].cross(F[i]);
+    }
+    torque = q.C(tau);
 }
 
 /*--------------------------------------------------------------------------------------------------

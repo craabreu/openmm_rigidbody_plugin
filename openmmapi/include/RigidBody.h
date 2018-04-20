@@ -21,6 +21,7 @@ public:
     void buildDynamics(vector<Vec3>& V, vector<double>& M);
     void updateAtomicPositions(vector<Vec3>& R);
     void updateAtomicVelocities(vector<Vec3>& V);
+    void forceAndTorque(const vector<Vec3>& F);
     void uniaxialRotationAxis1(double dt);
     void uniaxialRotationAxis2(double dt);
     void uniaxialRotationAxis3(double dt);
@@ -44,6 +45,10 @@ public:
 
     double invMass;       // total body mass and its inverse
     Vec3   invI;          // Principal moments of inertia and their inverses
+
+    vector<Vec3> delta;
+    double Kt;
+    double Kr;
 };
 
 template<class real, class real3, class real4>

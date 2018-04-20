@@ -149,9 +149,9 @@ real CudaIntegrateRigidBodyStepKernel::allocateArrays(size_t bodyDataSize) {
 /*--------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------*/
 
-void CudaIntegrateRigidBodyStepKernel::initialize(const System& system,
+void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context,
                                                   const RigidBodyIntegrator& integrator) {
-    cu.getPlatformData().initializeContexts(system);
+    cu.getPlatformData().initializeContexts(context.getSystem());
     cu.setAsCurrent();
     map<string, string> defines;
 

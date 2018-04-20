@@ -25,6 +25,7 @@
 #ifndef __ReferenceRigidBodyDynamics_H__
 #define __ReferenceRigidBodyDynamics_H__
 
+#include "RigidBodyIntegrator.h"
 #include "openmm/reference/ReferenceDynamics.h"
 #include <vector>
 
@@ -36,7 +37,8 @@ class ReferenceRigidBodyDynamics : public OpenMM::ReferenceDynamics {
 
       std::vector<OpenMM::Vec3> xPrime;
       std::vector<double> inverseMasses;
-      
+      RigidBodySystem bodySystem;
+
    public:
 
       /**---------------------------------------------------------------------------------------
@@ -62,6 +64,14 @@ class ReferenceRigidBodyDynamics : public OpenMM::ReferenceDynamics {
 
       /**---------------------------------------------------------------------------------------
       
+         Copy Body System
+      
+         --------------------------------------------------------------------------------------- */
+
+    void copyBodySystem(RigidBodySystem& bodySystem);
+
+      /**---------------------------------------------------------------------------------------
+      
          Update
       
          @param system              the System to be integrated
@@ -73,8 +83,9 @@ class ReferenceRigidBodyDynamics : public OpenMM::ReferenceDynamics {
       
          --------------------------------------------------------------------------------------- */
      
-      void update(const OpenMM::System& system, std::vector<OpenMM::Vec3>& atomCoordinates,
-                  std::vector<OpenMM::Vec3>& velocities, std::vector<OpenMM::Vec3>& forces, std::vector<double>& masses, double tolerance);
+      void update(OpenMM::ContextImpl& context, std::vector<OpenMM::Vec3>& atomCoordinates,
+                  std::vector<OpenMM::Vec3>& velocities, std::vector<OpenMM::Vec3>& forces,
+                  std::vector<double>& masses, double tolerance);
       
 };
 

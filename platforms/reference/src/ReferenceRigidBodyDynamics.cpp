@@ -61,6 +61,14 @@ ReferenceRigidBodyDynamics::ReferenceRigidBodyDynamics(int numberOfAtoms, double
 ReferenceRigidBodyDynamics::~ReferenceRigidBodyDynamics() {
 }
 
+
+/**---------------------------------------------------------------------------------------
+   --------------------------------------------------------------------------------------- */
+
+void ReferenceRigidBodyDynamics::copyBodySystem(RigidBodySystem& bodySystem) {
+    this->bodySystem.copy(bodySystem);
+}
+
 /**---------------------------------------------------------------------------------------
 
    Update -- driver routine for performing RigidBody dynamics update of coordinates
@@ -74,47 +82,54 @@ ReferenceRigidBodyDynamics::~ReferenceRigidBodyDynamics() {
 
    --------------------------------------------------------------------------------------- */
 
-void ReferenceRigidBodyDynamics::update(const OpenMM::System& system, vector<Vec3>& atomCoordinates,
-                                          vector<Vec3>& velocities,
-                                          vector<Vec3>& forces, vector<double>& masses, double tolerance) {
-   // first-time-through initialization
+void ReferenceRigidBodyDynamics::update(OpenMM::ContextImpl& context, vector<Vec3>& atomCoordinates,
+                                        vector<Vec3>& velocities,
+                                        vector<Vec3>& forces, vector<double>& masses, double tolerance) {
+    // first-time-through initialization
+ 
+    int numberOfAtoms = context.getSystem().getNumParticles();
+    if (getTimeStep() == 0) {
+       // invert masses
 
-   int numberOfAtoms = system.getNumParticles();
-   if (getTimeStep() == 0) {
-      // invert masses
+       for (int ii = 0; ii < numberOfAtoms; ii++) {
+          if (masses[ii] == 0.0)
+              inverseMasses[ii] = 0.0;
+          else
+              inverseMasses[ii] = 1.0/masses[ii];
+       }
+    }
 
-      for (int ii = 0; ii < numberOfAtoms; ii++) {
-         if (masses[ii] == 0.0)
-             inverseMasses[ii] = 0.0;
-         else
-             inverseMasses[ii] = 1.0/masses[ii];
-      }
-   }
-   
-   // Perform the integration.
-   
-   for (int i = 0; i < numberOfAtoms; ++i) {
-       if (masses[i] != 0.0)
-           for (int j = 0; j < 3; ++j) {
-               velocities[i][j] += inverseMasses[i]*forces[i][j]*getDeltaT();
-               xPrime[i][j] = atomCoordinates[i][j] + velocities[i][j]*getDeltaT();
-           }
-   }
-   ReferenceConstraintAlgorithm* referenceConstraintAlgorithm = getReferenceConstraintAlgorithm();
-   if (referenceConstraintAlgorithm)
-      referenceConstraintAlgorithm->apply(atomCoordinates, xPrime, inverseMasses, tolerance);
-   
-   // Update the positions and velocities.
-   
-   double velocityScale = static_cast<double>(1.0/getDeltaT());
-   for (int i = 0; i < numberOfAtoms; ++i) {
-       if (masses[i] != 0.0)
-           for (int j = 0; j < 3; ++j) {
-               velocities[i][j] = velocityScale*(xPrime[i][j] - atomCoordinates[i][j]);
-               atomCoordinates[i][j] = xPrime[i][j];
-           }
-   }
+    // Perform the integration.
 
-   ReferenceVirtualSites::computePositions(system, atomCoordinates);
-   incrementTimeStep();
+    for (int k = 0; k < bodySystem.getNumFree(); k++) {
+        int i = bodySystem.getAtomIndex(k);
+        if (masses[i] != 0.0)
+            for (int j = 0; j < 3; ++j) {
+                velocities[i][j] += inverseMasses[i]*forces[i][j]*getDeltaT()*0.5;
+                xPrime[i][j] = atomCoordinates[i][j] + velocities[i][j]*getDeltaT();
+            }
+    }
+    ReferenceConstraintAlgorithm* referenceConstraintAlgorithm = getReferenceConstraintAlgorithm();
+    if (referenceConstraintAlgorithm)
+        referenceConstraintAlgorithm->apply(atomCoordinates, xPrime, inverseMasses, tolerance);
+
+    // Update the positions and velocities.
+
+    bodySystem.integratePart1(getDeltaT(), atomCoordinates);
+    ReferenceVirtualSites::computePositions(context.getSystem(), atomCoordinates);
+    context.calcForcesAndEnergy(true, false);
+
+    double velocityScale = static_cast<double>(1.0/getDeltaT());
+    for (int k = 0; k < bodySystem.getNumFree(); k++) {
+        int i = bodySystem.getAtomIndex(k);
+        if (masses[i] != 0.0)
+            for (int j = 0; j < 3; ++j) {
+                velocities[i][j] += inverseMasses[i]*forces[i][j]*getDeltaT()*0.5 +
+                                    velocityScale*(xPrime[i][j] - atomCoordinates[i][j]);
+                atomCoordinates[i][j] = xPrime[i][j];
+            }
+    }
+
+    bodySystem.integratePart2(getDeltaT(), forces, velocities);
+    incrementTimeStep();
 }

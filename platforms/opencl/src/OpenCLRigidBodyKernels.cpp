@@ -50,9 +50,9 @@ static void setPosqCorrectionArg(OpenCLContext& cl, cl::Kernel& kernel, int inde
 OpenCLIntegrateRigidBodyStepKernel::~OpenCLIntegrateRigidBodyStepKernel() {
 }
 
-void OpenCLIntegrateRigidBodyStepKernel::initialize(const System& system, const RigidBodyIntegrator& integrator) {
+void OpenCLIntegrateRigidBodyStepKernel::initialize(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     throw OpenMMException("This version of Rigid Body Plugin does not support OpenCL Platform");
-    cl.getPlatformData().initializeContexts(system);
+    cl.getPlatformData().initializeContexts(context.getSystem());
     cl::Program program = cl.createProgram(OpenCLRigidBodyKernelSources::rigidbodyintegrator, "");
     kernel1 = cl::Kernel(program, "integrateRigidBodyPart1");
     kernel2 = cl::Kernel(program, "integrateRigidBodyPart2");

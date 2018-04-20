@@ -36,9 +36,9 @@ void RigidBodyIntegrator::initialize(ContextImpl& contextRef) {
     const System *system = &contextRef.getSystem();
     if (system->getNumParticles() != bodyIndices.size())
         throw OpenMMException("Number of body indices differs from that of atoms in Context");
-    bodySystem = new RigidBodySystem(*context, bodyIndices);
+    bodySystem.initialize(*context, bodyIndices);
     kernel = context->getPlatform().createKernel(IntegrateRigidBodyStepKernel::Name(), contextRef);
-    kernel.getAs<IntegrateRigidBodyStepKernel>().initialize(*system, *this);
+    kernel.getAs<IntegrateRigidBodyStepKernel>().initialize(*context, *this);
 }
 
 void RigidBodyIntegrator::cleanup() {
@@ -56,11 +56,11 @@ void RigidBodyIntegrator::stateChanged(State::DataType changed) {
         if (changed == State::Positions) {
             context->updateContextState();
             context->calcForcesAndEnergy(true, false);
-            bodySystem->update(true, true);
+            bodySystem.update(*context, true, true);
         }
         else
-            bodySystem->update(false, true);
-        kernel.getAs<IntegrateRigidBodyStepKernel>().uploadBodySystem(*this->bodySystem);
+            bodySystem.update(*context, false, true);
+        kernel.getAs<IntegrateRigidBodyStepKernel>().uploadBodySystem(bodySystem);
     }
 }
 

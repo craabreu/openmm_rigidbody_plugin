@@ -52,7 +52,7 @@ public:
      * @param system     the System this kernel will be applied to
      * @param integrator the RigidBodyIntegrator this kernel will be used for
      */
-    void initialize(const OpenMM::System& system, const RigidBodyIntegrator& integrator);
+    void initialize(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
     /**
      * Upload the rigid body system to the device.
      *

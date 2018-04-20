@@ -25,7 +25,6 @@ namespace RigidBodyPlugin {
 
 class RigidBodySystem {
 public:
-    explicit RigidBodySystem(ContextImpl& contextRef, const vector<int>& bodyIndices);
     int getNumDOF() const {return numDOF; }
 };
 

@@ -47,7 +47,7 @@ namespace RigidBodyPlugin {
 class ReferenceIntegrateRigidBodyStepKernel : public IntegrateRigidBodyStepKernel {
 public:
     ReferenceIntegrateRigidBodyStepKernel(std::string name, const OpenMM::Platform& platform, OpenMM::ReferencePlatform::PlatformData& data) : IntegrateRigidBodyStepKernel(name, platform),
-        data(data), dynamics(0) {
+        data(data) {
     }
     ~ReferenceIntegrateRigidBodyStepKernel();
     /**
@@ -56,13 +56,13 @@ public:
      * @param system     the System this kernel will be applied to
      * @param integrator the RigidBodyIntegrator this kernel will be used for
      */
-    void initialize(const OpenMM::System& system, const RigidBodyIntegrator& integrator);
+    void initialize(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
     /**
      * Upload the rigid body system to the device.
      *
      * @param integrator the RigidBodyIntegrator this kernel will be used for
      */
-    void uploadBodySystem(RigidBodySystem& bodySystem) {}  // MUDAR DEPOIS
+    void uploadBodySystem(RigidBodySystem& bodySystem);
     /**
      * Execute the kernel.
      * 
@@ -79,9 +79,10 @@ public:
     double computeKineticEnergy(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
 private:
     OpenMM::ReferencePlatform::PlatformData& data;
-    ReferenceRigidBodyDynamics* dynamics;
-    std::vector<double> masses;
-    double prevStepSize;
+    RigidBodySystem bodySystem;
+    std::vector<bool> hasMass;
+    std::vector<double> invMass;
+    std::vector<Vec3> posDelta;
 };
 
 } // namespace RigidBodyPlugin
