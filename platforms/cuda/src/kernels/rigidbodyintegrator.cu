@@ -346,7 +346,8 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
         mixed4& velocity = velm[i];
         if (velocity.w != zero) {
             mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
-            mixed3 v = trim(velocity) + f*(velocity.w*halfDt);
+            mixed3 r = loadPos(posq, posqCorrection, i);
+            mixed3 v = trim(velocity) + f*(velocity.w*halfDt) + (r - savedPos[j])*invDt;
             velocity = fuse(v, velocity.w);
         }
     }
