@@ -33,7 +33,6 @@
  * -------------------------------------------------------------------------- */
 
 #include "RigidBodyKernels.h"
-#include "ReferenceRigidBodyDynamics.h"
 #include "openmm/Platform.h"
 #include "openmm/System.h"
 #include "openmm/reference/ReferencePlatform.h"
