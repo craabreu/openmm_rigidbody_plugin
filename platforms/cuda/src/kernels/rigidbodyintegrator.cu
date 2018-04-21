@@ -256,14 +256,12 @@ extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         int i = atomLocation[j];
         mixed4& velocity = velm[i];
-        if (velocity.w != zero) {
-            mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
-            mixed3 v = trim(velocity) + f*(velocity.w*halfDt);
-            mixed3 delta = v*dt;
-            velocity = fuse(v, velocity.w);
-            posDelta[i] = fuse(delta, zero);
-            savedPos[j] = loadPos(posq, posqCorrection, i) + delta;
-        }
+        mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
+        mixed3 v = trim(velocity) + f*(velocity.w*halfDt);
+        mixed3 delta = v*dt;
+        velocity = fuse(v, velocity.w);
+        posDelta[i] = fuse(delta, zero);
+        savedPos[j] = loadPos(posq, posqCorrection, i) + delta;
     }
 }
 
@@ -288,10 +286,8 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
 
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         int i = atomLocation[j];
-        if (velm[i].w != zero) {
-            mixed3 pos = loadPos(posq, posqCorrection, i) + trim(posDelta[i]);
-            storePos(posq, posqCorrection, i, pos);
-        }
+        mixed3 pos = loadPos(posq, posqCorrection, i) + trim(posDelta[i]);
+        storePos(posq, posqCorrection, i, pos);
     }
 
     const mixed halfDt = half*dt;
@@ -344,12 +340,10 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         int i = atomLocation[j];
         mixed4& velocity = velm[i];
-        if (velocity.w != zero) {
-            mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
-            mixed3 r = loadPos(posq, posqCorrection, i);
-            mixed3 v = trim(velocity) + f*(velocity.w*halfDt) + (r - savedPos[j])*invDt;
-            velocity = fuse(v, velocity.w);
-        }
+        mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
+        mixed3 r = loadPos(posq, posqCorrection, i);
+        mixed3 v = trim(velocity) + f*(velocity.w*halfDt) + (r - savedPos[j])*invDt;
+        velocity = fuse(v, velocity.w);
     }
 
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {

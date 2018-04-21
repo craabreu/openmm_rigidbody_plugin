@@ -70,7 +70,7 @@ void RigidBodySystem::initialize(ContextImpl& context, const vector<int>& bodyIn
     numFree = 0;
     body.resize(numBodies);
     for (int i = 0; i < numAtoms; i++)
-        if (!system.isVirtualSite(i)) {
+        if (!(system.isVirtualSite(i) || system.getParticleMass(i) == 0.0)) {
             int ibody = bodyIndex[i];
             if (ibody == 0)
                 atomIndex[numFree++] = i;

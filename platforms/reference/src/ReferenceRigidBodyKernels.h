@@ -79,7 +79,6 @@ public:
 private:
     OpenMM::ReferencePlatform::PlatformData& data;
     RigidBodySystem bodySystem;
-    std::vector<bool> hasMass;
     std::vector<double> invMass;
     std::vector<Vec3> newPos;
 };

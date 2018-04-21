@@ -67,13 +67,9 @@ ReferenceIntegrateRigidBodyStepKernel::~ReferenceIntegrateRigidBodyStepKernel() 
 void ReferenceIntegrateRigidBodyStepKernel::initialize(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     const System& system = context.getSystem();
     int numAtoms = system.getNumParticles();
-    hasMass.resize(numAtoms);
     invMass.resize(numAtoms);
-    for (int i = 0; i < numAtoms; ++i) {
-        double mass = system.getParticleMass(i);
-        hasMass[i] = mass != 0.0;
-        invMass[i] = hasMass[i] ? 1.0/mass : 0.0;
-    }
+    for (int i = 0; i < numAtoms; ++i)
+        invMass[i] = 1.0/system.getParticleMass(i);
     newPos.resize(numAtoms);
 }
 
@@ -98,17 +94,14 @@ void ReferenceIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const 
         savedPos.resize(numFree);
         for (int k = 0; k < numFree; k++) {
             int i = bodySystem.getAtomIndex(k);
-            if (hasMass[i]) {
-                V[i] += F[i]*invMass[i]*halfDt;
-                newPos[i] = R[i] + V[i]*dt;
-                savedPos[k] = newPos[i];
-            }
+            V[i] += F[i]*invMass[i]*halfDt;
+            newPos[i] = R[i] + V[i]*dt;
+            savedPos[k] = newPos[i];
         }
         constraints.apply(R, newPos, invMass, tol);
         for (int k = 0; k < numFree; k++) {
             int i = bodySystem.getAtomIndex(k);
-            if (hasMass[i])
-                R[i] = newPos[i];
+            R[i] = newPos[i];
         }
     }
 
@@ -121,8 +114,7 @@ void ReferenceIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const 
         double invDt = 1.0/dt;
         for (int k = 0; k < numFree; k++) {
             int i = bodySystem.getAtomIndex(k);
-            if (hasMass[i])
-                V[i] += F[i]*invMass[i]*halfDt + (R[i] - savedPos[k])*invDt;
+            V[i] += F[i]*invMass[i]*halfDt + (R[i] - savedPos[k])*invDt;
         }
         constraints.applyToVelocities(R, V, invMass, tol);
     }
