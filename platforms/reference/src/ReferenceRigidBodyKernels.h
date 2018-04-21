@@ -80,7 +80,7 @@ private:
     OpenMM::ReferencePlatform::PlatformData& data;
     RigidBodySystem bodySystem;
     std::vector<double> invMass;
-    std::vector<Vec3> newPos;
+    std::vector<Vec3> oldPos;
 };
 
 } // namespace RigidBodyPlugin

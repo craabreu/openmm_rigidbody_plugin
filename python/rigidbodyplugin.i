@@ -25,7 +25,10 @@ namespace RigidBodyPlugin {
 
 class RigidBodySystem {
 public:
-    int getNumDOF() const {return numDOF; }
+    int getNumDOF() const;
+    double getTranslationalEnergy() const;
+    double getRotationalEnergy() const;
+    double getKineticEnergy() const;
 };
 
 class RigidBodyIntegrator : public OpenMM::Integrator {

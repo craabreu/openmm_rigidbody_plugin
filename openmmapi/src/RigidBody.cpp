@@ -159,10 +159,10 @@ void RigidBody::updateAtomicVelocities(vector<Vec3>& V) {
     Vec3 omega = Diag3(invI)*L;
     Vec3 spaceFixedOmega = q.At(omega);
     Vec3 vcm = pcm*invMass;
-    Kt = pcm.dot(vcm)*0.5;
-    Kr = L.dot(omega)*0.5;
     for (int j = 0; j < N; j++)
         V[atom[j]] = vcm + spaceFixedOmega.cross(delta[j]);
+    Kt = pcm.dot(vcm)*0.5;
+    Kr = L.dot(omega)*0.5;
 }
 
 /*--------------------------------------------------------------------------------------------------

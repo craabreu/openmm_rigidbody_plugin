@@ -70,7 +70,7 @@ void ReferenceIntegrateRigidBodyStepKernel::initialize(ContextImpl& context, con
     invMass.resize(numAtoms);
     for (int i = 0; i < numAtoms; ++i)
         invMass[i] = 1.0/system.getParticleMass(i);
-    newPos.resize(numAtoms);
+    oldPos.resize(numAtoms);
 }
 
 void ReferenceIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySystem) {
@@ -82,42 +82,24 @@ void ReferenceIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const 
     double halfDt = 0.5*dt;
     double tol = integrator.getConstraintTolerance();
 
-    vector<Vec3> savedPos;
-    ReferenceConstraints& constraints = extractConstraints(context);
-
     vector<Vec3>& R = extractPositions(context);
     vector<Vec3>& V = extractVelocities(context);
     vector<Vec3>& F = extractForces(context);
+    ReferenceConstraints& constraints = extractConstraints(context);
 
     int numFree = bodySystem.getNumFree();
-    if (numFree != 0) {
-        savedPos.resize(numFree);
-        for (int k = 0; k < numFree; k++) {
-            int i = bodySystem.getAtomIndex(k);
-            V[i] += F[i]*invMass[i]*halfDt;
-            newPos[i] = R[i] + V[i]*dt;
-            savedPos[k] = newPos[i];
-        }
-        constraints.apply(R, newPos, invMass, tol);
-        for (int k = 0; k < numFree; k++) {
-            int i = bodySystem.getAtomIndex(k);
-            R[i] = newPos[i];
-        }
+    for (int k = 0; k < bodySystem.getNumFree(); k++) {
+        int i = bodySystem.getAtomIndex(k);
+        oldPos[i] = R[i];
     }
-
-    bodySystem.integratePart1(dt, R);
+    bodySystem.integratePart1(dt, F, V, R);
+    if (numFree != 0)
+        constraints.apply(oldPos, R, invMass, tol);
     ReferenceVirtualSites::computePositions(context.getSystem(), R);
     context.calcForcesAndEnergy(true, false);
-    bodySystem.integratePart2(dt, F, V);
-
-    if (numFree != 0) {
-        double invDt = 1.0/dt;
-        for (int k = 0; k < numFree; k++) {
-            int i = bodySystem.getAtomIndex(k);
-            V[i] += F[i]*invMass[i]*halfDt + (R[i] - savedPos[k])*invDt;
-        }
+    bodySystem.integratePart2(dt, R, F, V);
+    if (numFree != 0)
         constraints.applyToVelocities(R, V, invMass, tol);
-    }
 
     data.time += dt;
     data.stepCount++;
@@ -125,10 +107,6 @@ void ReferenceIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const 
 
 double ReferenceIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     vector<Vec3>& V = extractVelocities(context);
-    double KE = 0.0;
-    for (int k = 0; k < bodySystem.getNumFree(); k++) {
-        int i = bodySystem.getAtomIndex(k);
-        KE += V[i].dot(V[i])/invMass[i];
-    }
-    return 0.5*KE + bodySystem.getKineticEnergy();
+    bodySystem.computeKineticEnergies(V);
+    return bodySystem.getKineticEnergy();
 }

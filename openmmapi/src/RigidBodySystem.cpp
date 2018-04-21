@@ -80,7 +80,14 @@ void RigidBodySystem::initialize(ContextImpl& context, const vector<int>& bodyIn
     numBodyAtoms = numActualAtoms - numFree;
     bodyFixedPositions.resize(numBodyAtoms);
 
+    freeAtom.resize(numFree);
     int loc = 0;
+    for (auto& a : freeAtom) {
+        a.index = atomIndex[loc++];
+        a.invMass = 1.0/system.getParticleMass(a.index);
+    }
+
+    loc = 0;
     for (auto& b : body) {
         b.loc = loc;
         b.atom = &atomIndex[numFree+loc];
@@ -157,8 +164,13 @@ void RigidBodySystem::copy(const RigidBodySystem& bodySystem) {
   First part of rigid body NVE integration step.
 --------------------------------------------------------------------------------------------------*/
 
-void RigidBodySystem::integratePart1(double dt, vector<Vec3>& R) {
+void RigidBodySystem::integratePart1(double dt, const vector<Vec3>& F, vector<Vec3>& V, vector<Vec3>& R) {
     double halfDt = 0.5*dt;
+    for (auto& a : freeAtom) {
+        V[a.index] += F[a.index]*a.invMass*halfDt;
+        R[a.index] += V[a.index]*dt;
+        a.savedPos = R[a.index];
+    }
     for (auto& b : body) {
         b.pcm += b.force*halfDt;
         b.pi += b.torque*dt;
@@ -172,15 +184,30 @@ void RigidBodySystem::integratePart1(double dt, vector<Vec3>& R) {
   Second part of rigid body NVE integration step.
 --------------------------------------------------------------------------------------------------*/
 
-void RigidBodySystem::integratePart2(double dt, const vector<Vec3>& F, vector<Vec3>& V) {
+void RigidBodySystem::integratePart2(double dt, const vector<Vec3>& R, const vector<Vec3>& F, vector<Vec3>& V) {
     double halfDt = 0.5*dt;
-    bodyKE[0] = bodyKE[1] = 0.0;
+    double invDt = 1.0/dt;
+    for (auto& a : freeAtom)
+        V[a.index] += F[a.index]*a.invMass*halfDt + (R[a.index] - a.savedPos)*invDt;
     for (auto& b : body) {
         b.forceAndTorque(F);
         b.pcm += b.force*halfDt;
         b.pi += b.torque*dt;
         b.updateAtomicVelocities(V);
-        bodyKE[0] += b.Kt;
-        bodyKE[1] += b.Kr;
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Compute kinetic energy.
+--------------------------------------------------------------------------------------------------*/
+
+void RigidBodySystem::computeKineticEnergies(const vector<Vec3>& V) {
+    transKE = rotKE = 0.0;
+    for (auto& a : freeAtom)
+        transKE += V[a.index].dot(V[a.index])/a.invMass;
+    transKE *= 0.5;
+    for (auto& b : body) {
+        transKE += b.Kt;
+        rotKE += b.Kr;
     }
 }
