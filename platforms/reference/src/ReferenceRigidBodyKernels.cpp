@@ -68,8 +68,10 @@ void ReferenceIntegrateRigidBodyStepKernel::initialize(ContextImpl& context, con
     const System& system = context.getSystem();
     int numAtoms = system.getNumParticles();
     invMass.resize(numAtoms);
-    for (int i = 0; i < numAtoms; ++i)
-        invMass[i] = 1.0/system.getParticleMass(i);
+    for (int i = 0; i < numAtoms; ++i) {
+        double mass = system.getParticleMass(i);
+        invMass[i] = mass == 0.0 ? 0.0 : 1.0/mass;
+    }
     oldPos.resize(numAtoms);
 }
 

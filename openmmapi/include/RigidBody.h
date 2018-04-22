@@ -25,7 +25,8 @@ public:
     void uniaxialRotationAxis1(double dt);
     void uniaxialRotationAxis2(double dt);
     void uniaxialRotationAxis3(double dt);
-    void rotate(double dt);
+    void noSquishRotation(double dt, int n);
+    void exactRotation(double dt);
 
     int    N = 0;         // number of atoms
     int    dof;           // Number of degrees of freedom
@@ -36,8 +37,8 @@ public:
     Quat   q;             // Unit orientation quaternion
     Quat   pi;            // Quaternion-conjugated momentum
 
-    Vec3   force;
-    Quat   torque;
+    Vec3   force;         // Resultant force
+    Quat   torque;        // Resultant quaternion-fixed torque
 
     int    loc;           // location of first atom index
     int*   atom;          // pointer to the index of the first atom
@@ -46,9 +47,9 @@ public:
     double invMass;       // total body mass and its inverse
     Vec3   invI;          // Principal moments of inertia and their inverses
 
-    vector<Vec3> delta;
-    double Kt;
-    double Kr;
+    double twoKt;         // Twice the translational kinetic energy
+    double twoKr;         // Twice the rotational kinetic energy
+    vector<Vec3> delta;   // Space-fixed displacements from the center of mass
 };
 
 template<class real, class real3, class real4>

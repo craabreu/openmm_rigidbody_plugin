@@ -27,7 +27,7 @@ namespace RigidBodyPlugin {
 class RigidBodySystem {
 public:
     RigidBodySystem() {}
-    void initialize(ContextImpl& contextRef, const vector<int>& bodyIndices);
+    void initialize(ContextImpl& contextRef, const vector<int>& bodyIndices, int rotationMode);
     void update(ContextImpl& contextRef, bool geometry, bool velocities);
     void copy(const RigidBodySystem& bodySystem);
     void integratePart1(double dt, const vector<Vec3>& F, vector<Vec3>& V, vector<Vec3>& R);
@@ -45,6 +45,7 @@ public:
     double getRotationalEnergy() const { return rotKE; }
     double getKineticEnergy() const { return transKE + rotKE; }
 private:
+    int rotationMode;
     std::vector<int> bodyIndex;
     std::vector<int> atomIndex;
     std::vector<RigidBody> body;

@@ -161,8 +161,8 @@ void RigidBody::updateAtomicVelocities(vector<Vec3>& V) {
     Vec3 vcm = pcm*invMass;
     for (int j = 0; j < N; j++)
         V[atom[j]] = vcm + spaceFixedOmega.cross(delta[j]);
-    Kt = pcm.dot(vcm)*0.5;
-    Kr = L.dot(omega)*0.5;
+    twoKt = pcm.dot(vcm);
+    twoKr = L.dot(omega);
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -212,6 +212,23 @@ void RigidBody::uniaxialRotationAxis3(double dt) {
 }
 
 /*--------------------------------------------------------------------------------------------------
+  Perform a torque-free rotation using the NO_SQUISH method.
+--------------------------------------------------------------------------------------------------*/
+
+void RigidBody::noSquishRotation(double dt, int n) {
+    double dtByN = dt/n;
+    double halfDtByN = 0.5*dtByN;
+    bool axis3 = dof == 6;
+    for (int i = 0; i < n; i++) {
+        if (axis3) uniaxialRotationAxis3(halfDtByN);
+        uniaxialRotationAxis2(halfDtByN);
+        uniaxialRotationAxis1(dtByN);
+        uniaxialRotationAxis2(halfDtByN);
+        if (axis3) uniaxialRotationAxis3(halfDtByN);
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
   Perform a torque-free rotation using exact solution.
 --------------------------------------------------------------------------------------------------*/
 
@@ -219,7 +236,7 @@ void RigidBody::uniaxialRotationAxis3(double dt) {
 #define stairCase(x) ((x) > 0 ? (int)ceil((x) - 0.5) : (int)floor((x) + 0.5))
 #define PI           3.14159265358979323846264338328
 
-void RigidBody::rotate(double dt) {
+void RigidBody::exactRotation(double dt) {
     const double EPSILON = numeric_limits<double>::epsilon();
     Vec3 Iw = q.Bt(pi)*0.5;
     Vec3 w0 = Diag3(invI)*Iw;
@@ -235,10 +252,8 @@ void RigidBody::rotate(double dt) {
     double l1 = r1*invI[1]/(I[1] - I[2]);
     double l3 = r3*invI[1]/(I[0] - I[1]);
     double lmin = min(l1, l3);
-    double invI1mI3 = 1.0/(I[0] - I[2]);
-    Vec3 a(SIGN(w0[0])*sqrt(r1*invI[0]*invI1mI3),
-           sqrt(lmin),
-           SIGN(w0[2])*sqrt(r3*invI[2]*invI1mI3));
+    double c13 = 1.0/(I[0] - I[2]);
+    Vec3 a(SIGN(w0[0])*sqrt(r1*invI[0]*c13), sqrt(lmin), SIGN(w0[2])*sqrt(r3*invI[2]*c13));
     double m = lmin/max(l1, l3);
     double K = carlsonRF(0.0, 1.0 - m, 1.0);
     double inv2K = 0.5/K;
@@ -257,7 +272,7 @@ void RigidBody::rotate(double dt) {
         u0 = s0*K;
         i0 = 0;
     }
-    double wp = -invI[1]*a[0]*a[2]/(a[1]*invI1mI3);
+    double wp = -invI[1]*a[0]*a[2]/(a[1]*c13);
     double u = wp*dt + u0;
     int jump = stairCase(u*inv2K) - i0;
     double sn, cn, dn, deltaF;

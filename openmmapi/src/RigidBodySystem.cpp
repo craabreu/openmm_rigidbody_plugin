@@ -52,8 +52,9 @@ vector<int> cleanBodyIndices(const vector<int>& bodyIndices) {
   Create a data structure for the system of rigid bodies and free atoms.
 --------------------------------------------------------------------------------------------------*/
 
-void RigidBodySystem::initialize(ContextImpl& context, const vector<int>& bodyIndices) {
+void RigidBodySystem::initialize(ContextImpl& context, const vector<int>& bodyIndices, int rotationMode) {
     bodyIndex = cleanBodyIndices(bodyIndices);
+    this->rotationMode = rotationMode;
 
     numBodies = 0;
     for (auto index : bodyIndex)
@@ -145,6 +146,7 @@ void RigidBodySystem::update(ContextImpl& context, bool geometry, bool velocitie
 --------------------------------------------------------------------------------------------------*/
 
 void RigidBodySystem::copy(const RigidBodySystem& bodySystem) {
+    rotationMode = bodySystem.rotationMode;
     numFree = bodySystem.numFree;
     numBodies = bodySystem.numBodies;
     numActualAtoms = bodySystem.numActualAtoms;
@@ -175,7 +177,10 @@ void RigidBodySystem::integratePart1(double dt, const vector<Vec3>& F, vector<Ve
         b.pcm += b.force*halfDt;
         b.pi += b.torque*dt;
         b.rcm += b.pcm*(b.invMass*dt);
-        b.rotate(dt);
+        if (rotationMode == 0)
+            b.exactRotation(dt);
+        else
+            b.noSquishRotation(dt, rotationMode);
         b.updateAtomicPositions(R);
     }
 }
@@ -205,9 +210,10 @@ void RigidBodySystem::computeKineticEnergies(const vector<Vec3>& V) {
     transKE = rotKE = 0.0;
     for (auto& a : freeAtom)
         transKE += V[a.index].dot(V[a.index])/a.invMass;
-    transKE *= 0.5;
     for (auto& b : body) {
-        transKE += b.Kt;
-        rotKE += b.Kr;
+        transKE += b.twoKt;
+        rotKE += b.twoKr;
     }
+    transKE *= 0.5;
+    rotKE *= 0.5;
 }

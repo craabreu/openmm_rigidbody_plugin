@@ -109,7 +109,7 @@ private:
     std::vector<int> bodyIndices;
     RigidBodySystem bodySystem;
     OpenMM::Kernel kernel;
-    int rotationMode = 0;
+    int rotationMode;
 };
 
 } // namespace OpenMM

@@ -18,6 +18,7 @@ RigidBodyIntegrator::RigidBodyIntegrator(double stepSize, const vector<int>& bod
     setStepSize(stepSize);
     setConstraintTolerance(1e-5);
     this->bodyIndices = bodyIndices;
+    rotationMode = 0;
 }
 
 void RigidBodyIntegrator::setRotationMode(int mode) {
@@ -36,7 +37,7 @@ void RigidBodyIntegrator::initialize(ContextImpl& contextRef) {
     const System *system = &contextRef.getSystem();
     if (system->getNumParticles() != bodyIndices.size())
         throw OpenMMException("Number of body indices differs from that of atoms in Context");
-    bodySystem.initialize(*context, bodyIndices);
+    bodySystem.initialize(*context, bodyIndices, rotationMode);
     kernel = context->getPlatform().createKernel(IntegrateRigidBodyStepKernel::Name(), contextRef);
     kernel.getAs<IntegrateRigidBodyStepKernel>().initialize(*context, *this);
 }
