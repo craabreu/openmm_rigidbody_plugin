@@ -22,7 +22,7 @@ before_install:
 install:
   - mkdir build
   - cd build
-  - cmake ..
+  - cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/miniconda3/envs/py3/ -DOPENMM_DIR=$HOME/miniconda3/envs/py3/ -DSWIG_EXECUTABLE=$HOME/miniconda3/envs/py3/bin/swig
   - make VERBOSE=1
   - make install
   - make PythonInstall
