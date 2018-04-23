@@ -179,10 +179,8 @@ inline __device__ void exactRotation(BodyData& body, mixed dt) {
     mixed l1 = r1*invI.y/(I.y - I.z);
     mixed l3 = r3*invI.y/(I.x - I.y);
     mixed lmin = min(l1, l3);
-    mixed invI1mI3 = one/(I.x - I.z);
-    mixed3 a = make_mixed3(SIGN(w0.x)*sqrt(r1*invI.x*invI1mI3),
-                           sqrt(lmin),
-                           SIGN(w0.z)*sqrt(r3*invI.z*invI1mI3));
+    mixed c13 = one/(I.x - I.z);
+    mixed3 a = make_mixed3(SIGN(w0.x)*sqrt(r1*invI.x*c13), sqrt(lmin), SIGN(w0.z)*sqrt(r3*invI.z*c13));
     mixed m = lmin/max(l1, l3);
     mixed K = carlsonRF(zero, one - m, one);
     mixed inv2K = half/K;
@@ -201,7 +199,7 @@ inline __device__ void exactRotation(BodyData& body, mixed dt) {
         u0 = s0*K;
         i0 = 0;
     }
-    mixed wp = -body.invI.y*a.x*a.z/(a.y*invI1mI3);
+    mixed wp = -body.invI.y*a.x*a.z/(a.y*c13);
     mixed u = wp*dt + u0;
     int jump = stairCase(u*inv2K) - i0;
     mixed sn, cn, dn, deltaF;

@@ -129,6 +129,7 @@ void RigidBody::buildDynamics(vector<Vec3>& V, vector<double>& M) {
         pcm += p;
     }
     Vec3 vcm = pcm/mass;
+    twoKt = pcm.dot(vcm);
 
     // Quaternion-conjugated momentum
     Vec3 L;
@@ -137,6 +138,7 @@ void RigidBody::buildDynamics(vector<Vec3>& V, vector<double>& M) {
         L += d[j].cross(q.A(V[i] - vcm)*M[i]);
     }
     pi = q.B(L)*2.0;
+    twoKr = L.dot(Diag3(invI)*L);
 }
 
 /*--------------------------------------------------------------------------------------------------

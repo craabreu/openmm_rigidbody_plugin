@@ -125,8 +125,10 @@ vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& cont
     if (numBodies != 0) {
         real2* bKE = (real2*)pinnedBuffer;
         bodyKE.download(bKE);
-        for (int i = 0; i < numBodies; i++)
-            KE[1] += bKE[i].x + bKE[i].y;
+        for (int i = 0; i < numBodies; i++) {
+            KE[0] += bKE[i].x;
+            KE[1] += bKE[i].y;
+        }
     }
 
     vector<double> dKE(KE.begin(), KE.end());
