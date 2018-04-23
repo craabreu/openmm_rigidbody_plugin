@@ -35,6 +35,7 @@
 #include "RigidBodyKernels.h"
 #include "openmm/opencl/OpenCLContext.h"
 #include "openmm/opencl/OpenCLArray.h"
+#include <vector>
 
 namespace RigidBodyPlugin {
 
@@ -74,6 +75,13 @@ public:
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
     double computeKineticEnergy(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
+    /**
+     * Compute the different kinetic energy terms.
+     * 
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    std::vector<double> getKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
 private:
     OpenMM::OpenCLContext& cl;
     bool hasInitializedKernels;

@@ -8,6 +8,7 @@
 #include "openmm/internal/ContextImpl.h"
 #include "openmm/kernels.h"
 #include "RigidBodyKernels.h"
+#include <vector>
 
 using namespace RigidBodyPlugin;
 using namespace OpenMM;
@@ -67,6 +68,10 @@ void RigidBodyIntegrator::stateChanged(State::DataType changed) {
 
 double RigidBodyIntegrator::computeKineticEnergy() {
     return kernel.getAs<IntegrateRigidBodyStepKernel>().computeKineticEnergy(*context, *this);
+}
+
+std::vector<double> RigidBodyIntegrator::getKineticEnergies() {
+    return kernel.getAs<IntegrateRigidBodyStepKernel>().getKineticEnergies(*context, *this);
 }
 
 std::vector<int> RigidBodyIntegrator::getBodyIndices() const {

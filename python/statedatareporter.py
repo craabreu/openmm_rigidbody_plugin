@@ -1,5 +1,8 @@
 %pythoncode %{
 
+def _isRigid(simulation):
+    return isinstance(simulation.integrator, RigidBodyIntegrator)
+
 class StateDataReporter(app.StateDataReporter):
 
     def __init__(self, *args, **kwargs):
@@ -12,14 +15,33 @@ class StateDataReporter(app.StateDataReporter):
         self._modifiedTotalEnergy = kwargs.pop('_modifiedTotalEnergy', False)
         super(StateDataReporter, self).__init__(*args, **kwargs)
 
-
     def _initializeConstants(self, simulation):
         super(StateDataReporter, self)._initializeConstants(simulation)
-        if self._temperature and isinstance(simulation.integrator, RigidBodyIntegrator):
+        if self._temperature and _isRigid(simulation):
             self.dof = simulation.integrator.getRigidBodySystem().getNumDOF()
             system = simulation.system
             forces = [system.getForce(i) for i in range(system.getNumForces())]
             if any(isinstance(f, mm.CMMotionRemover) for f in forces):
                 dof -= 3
+
+    def _constructHeaders(self):
+        headers = super(StateDataReporter, self)._constructHeaders()
+        if self._translationalEnergy:
+            headers.append('Translational Energy (kJ/mole)')
+        if self._rotationalEnergy:
+            headers.append('Rotational Energy (kJ/mole)')
+        return headers
+
+    def _constructReportValues(self, simulation, state):
+        values = super(StateDataReporter, self)._constructReportValues(simulation, state)
+        if _isRigid(simulation) and (self._translationalEnergy or self._rotationalEnergy):
+            KE = simulation.integrator.getKineticEnergies()
+        if self._translationalEnergy:
+            value = state.getKineticEnergy() if not _isRigid(simulation) else KE[0]
+            values.append(value.value_in_unit(unit.kilojoules_per_mole))
+        if self._rotationalEnergy:
+            value = 0.0 if not _isRigid(simulation) else KE[1]
+            values.append(value.value_in_unit(unit.kilojoules_per_mole))
+        return values
 
 %}

@@ -77,7 +77,11 @@ public:
     /**
      * Pointer to the system of rigid bodies 
      */
-     const RigidBodySystem& getRigidBodySystem() const { return bodySystem; }
+    const RigidBodySystem& getRigidBodySystem() const { return bodySystem; }
+    /**
+     * Compute the different terms of the kinetic energy of the system at the current time.
+     */
+    std::vector<double> getKineticEnergies();
 protected:
     /**
      * This will be called by the Context when it is created.  It informs the Integrator

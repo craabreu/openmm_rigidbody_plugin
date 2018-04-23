@@ -37,6 +37,8 @@
 #include "openmm/cuda/CudaBondedUtilities.h"
 #include "openmm/cuda/CudaForceInfo.h"
 #include "openmm/cuda/CudaIntegrationUtilities.h"
+#include <vector>
+#include <algorithm>
 
 #include <iostream> // TEMPORARY
 
@@ -97,8 +99,8 @@ private:
 --------------------------------------------------------------------------------------------------*/
 
 template <class real, class real2>
-real CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& context,
-                                                     const RigidBodyIntegrator& integrator) {
+vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& context,
+                                                               const RigidBodyIntegrator& integrator) {
     cu.setAsCurrent();
     int numAtoms = cu.getNumAtoms();
 
@@ -113,21 +115,22 @@ real CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& context,
 
     cu.executeKernel(kineticEnergyKernel, args, numAtoms, 128);
 
-    real KE = (real)0.0;
+    vector<real> KE(2, 0.0);
     if (numFree != 0) {
         real* aKE = (real*)pinnedBuffer;
         atomKE.download(aKE);
         for (int i = 0; i < numFree; i++)
-            KE += aKE[i];
+            KE[0] += aKE[i];
     }
     if (numBodies != 0) {
         real2* bKE = (real2*)pinnedBuffer;
         bodyKE.download(bKE);
         for (int i = 0; i < numBodies; i++)
-            KE += bKE[i].x + bKE[i].y;
+            KE[1] += bKE[i].x + bKE[i].y;
     }
 
-    return KE;
+    vector<double> dKE(KE.begin(), KE.end());
+    return dKE;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -327,11 +330,22 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
 /*--------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------*/
 
-double CudaIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context,
-                                                              const RigidBodyIntegrator& integrator)
+double CudaIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator)
 {
+    vector<double> KE;
+    if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
+        KE = kineticEnergy<double,double2>(context, integrator);
+    else
+        KE = kineticEnergy<float,float2>(context, integrator);
+    return std::accumulate(KE.begin(), KE.end(), 0.0);
+}
+
+/*--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------*/
+
+vector<double> CudaIntegrateRigidBodyStepKernel::getKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
         return kineticEnergy<double,double2>(context, integrator);
     else
-        return (double)kineticEnergy<float,float2>(context, integrator);
+        return kineticEnergy<float,float2>(context, integrator);
 }

@@ -37,6 +37,7 @@
 #include "openmm/Platform.h"
 #include "openmm/System.h"
 #include <string>
+#include <vector>
 
 namespace RigidBodyPlugin {
 
@@ -77,6 +78,13 @@ public:
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
     virtual double computeKineticEnergy(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator) = 0;
+    /**
+     * Compute the different kinetic energy terms.
+     * 
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    virtual std::vector<double> getKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator) = 0;
 };
 
 } // namespace RigidBodyPlugin

@@ -76,6 +76,13 @@ public:
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
     double computeKineticEnergy(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
+    /**
+     * Compute the different kinetic energy terms.
+     * 
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    std::vector<double> getKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
 private:
     OpenMM::ReferencePlatform::PlatformData& data;
     RigidBodySystem bodySystem;

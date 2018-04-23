@@ -35,6 +35,7 @@
 #include "RigidBodyKernels.h"
 #include "openmm/cuda/CudaContext.h"
 #include "openmm/cuda/CudaArray.h"
+#include <vector>
 
 namespace RigidBodyPlugin {
 
@@ -73,12 +74,19 @@ public:
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
     double computeKineticEnergy(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
+    /**
+     * Compute the different kinetic energy terms.
+     * 
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    std::vector<double> getKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
 private:
     class ReorderListener;
     ReorderListener* reorderListener;
 
     template <class real, class real2>
-    real kineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator);
+    std::vector<double> kineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator);
 
     template <class real, class real2, class real3>
     real allocateArrays(size_t bodyDataSize);

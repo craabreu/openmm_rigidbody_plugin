@@ -109,3 +109,8 @@ void OpenCLIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const Rig
 double OpenCLIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     return cl.getIntegrationUtilities().computeKineticEnergy(0.5*integrator.getStepSize());
 }
+
+vector<double> OpenCLIntegrateRigidBodyStepKernel::getKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+    vector<double> KE(2);
+    return KE;
+}

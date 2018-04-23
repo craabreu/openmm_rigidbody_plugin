@@ -6,6 +6,7 @@
 %include "std_vector.i"
 namespace std {
   %template(vectori) vector<int>;
+  %template(vectord) std::vector<double>;
 };
 
 %{
@@ -20,6 +21,22 @@ namespace std {
 %include "imports.py"
 %include "forcefield.py"
 %include "statedatareporter.py"
+
+%pythonappend RigidBodyPlugin::RigidBodySystem::getTranslationalEnergy() const %{
+    val = unit.Quantity(val, unit.kilojoule_per_mole)
+%}
+
+%pythonappend RigidBodyPlugin::RigidBodySystem::getRotationalEnergy() const %{
+    val = unit.Quantity(val, unit.kilojoule_per_mole)
+%}
+
+%pythonappend RigidBodyPlugin::RigidBodySystem::getKineticEnergy() const %{
+    val = unit.Quantity(val, unit.kilojoule_per_mole)
+%}
+
+%pythonappend RigidBodyPlugin::RigidBodyIntegrator::getKineticEnergies() %{
+    val = tuple(unit.Quantity(v, unit.kilojoule_per_mole) for v in val)
+%}
 
 namespace RigidBodyPlugin {
 
@@ -37,6 +54,7 @@ public:
     void setRotationMode(int mode);
     int getRotationMode();
     RigidBodySystem getRigidBodySystem();
+    std::vector<double> getKineticEnergies();
     void step(int steps);
 };
 
