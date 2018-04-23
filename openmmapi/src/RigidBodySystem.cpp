@@ -155,6 +155,7 @@ void RigidBodySystem::copy(const RigidBodySystem& bodySystem) {
     bodyIndex = bodySystem.bodyIndex;
     atomIndex = bodySystem.atomIndex;
     bodyFixedPositions = bodySystem.bodyFixedPositions;
+    freeAtom = bodySystem.freeAtom;
     body = bodySystem.body;
     for (auto& b : body) {
         b.atom = &atomIndex[numFree+b.loc];

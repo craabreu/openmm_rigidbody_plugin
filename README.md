@@ -1,6 +1,8 @@
 OpenMM RigidBody Plugin (Under Construction)
 =======================
 
+[![Build Status](https://travis-ci.org/craabreu/openmm_rigidbody_plugin.svg?branch=master)](https://travis-ci.org/craabreu/openmm_rigidbody_plugin)
+
 This project is an implemention of rigid-body dynamics for [OpenMM](http://openmm.org).
 
 The formulation is based on the paper:
