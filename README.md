@@ -2,6 +2,7 @@ OpenMM RigidBody Plugin (Under Construction)
 =======================
 
 [![Build Status](https://travis-ci.org/craabreu/openmm_rigidbody_plugin.svg?branch=master)](https://travis-ci.org/craabreu/openmm_rigidbody_plugin)
+[![codecov.io](http://codecov.io/github/craabreu/openmm_rigidbody_plugin/coverage.svg?branch=master)](http://codecov.io/github/craabreu/openmm_rigidbody_plugin?branch=master)
 
 This project is an implemention of rigid-body dynamics for [OpenMM](http://openmm.org).
 

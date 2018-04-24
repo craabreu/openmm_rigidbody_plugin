@@ -3,7 +3,13 @@ language: cpp
 compiler:
   - gcc
 
-sudo: false
+sudo: required
+
+dist: trusty
+
+env:
+  global:
+    - CUDA_VERSION=8.0.61-1
 
 addons:
     apt:
@@ -12,6 +18,19 @@ addons:
         - lcov
 
 before_install:
+# CUDA Installation:
+  - wget "http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/cuda-repo-ubuntu1404_${CUDA_VERSION}_amd64.deb"
+  - sudo dpkg -i cuda-repo-ubuntu1404_${CUDA_VERSION}_amd64.deb
+  - sudo apt-get update -qq
+  - export CUDA_APT=${CUDA_VERSION%-*}
+  - export CUDA_APT=${CUDA_APT/./-}
+  - sudo apt-get install -y cuda-drivers cuda-core-${CUDA_APT} cuda-cudart-dev-${CUDA_APT} cuda-cufft-dev-${CUDA_APT}
+  - sudo apt-get clean
+  - export CUDA_HOME=/usr/local/cuda-${CUDA_VERSION%%-*}
+  - export LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+  - export PATH=${CUDA_HOME}/bin:${PATH}
+  - sudo apt-get install -y libgl1-mesa-dev
+# OpenMM and SWIG installation:
   - wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
   - bash Miniconda3-latest-Linux-x86_64.sh -b
   - export PATH=$HOME/miniconda3/bin:$PATH
@@ -19,11 +38,10 @@ before_install:
   - conda create --yes -n py3 python=3.6
   - source activate py3
   - conda install --yes openmm=7.2 swig
-
 install:
   - mkdir build
   - cd build
-  - cmake .. -DENABLE_COVERAGE=On -DCMAKE_INSTALL_PREFIX=$HOME/miniconda3/envs/py3/ -DOPENMM_DIR=$HOME/miniconda3/envs/py3/ -DSWIG_EXECUTABLE=$HOME/miniconda3/envs/py3/bin/swig
+  - cmake .. -DENABLE_COVERAGE=On -DENABLE_COVERAGE_ALL=On -DCMAKE_INSTALL_PREFIX=$HOME/miniconda3/envs/py3/ -DOPENMM_DIR=$HOME/miniconda3/envs/py3/ -DSWIG_EXECUTABLE=$HOME/miniconda3/envs/py3/bin/swig
   - make VERBOSE=1
   - make install
   - make PythonInstall
