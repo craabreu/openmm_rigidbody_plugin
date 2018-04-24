@@ -227,7 +227,7 @@ inline double carlsonRJ(double x, double y, double z, double p)
         alfa = alfa * alfa;
         beta = pn * (pn + lamda) * (pn + lamda);
         double rc = carlsonRC(alfa, beta);
-        if (isnan(rc)) return NaN;
+        if (std::isnan(rc)) return NaN;
         sigma  += power4 * rc;
         power4 *= 0.25;
         xn = (xn + lamda) * 0.25;
