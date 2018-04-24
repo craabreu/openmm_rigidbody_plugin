@@ -42,7 +42,8 @@
 namespace RigidBodyPlugin {
 
 /**
- * This is an Integrator which simulates a System using the leap-frog RigidBody algorithm.
+ * This is an Integrator which simulates a System of rigid bodies and free atoms using a symplectic,
+   time-reversible, volume-preserving algorithm.
  */
 
 class OPENMM_EXPORT_RIGIDBODY RigidBodyIntegrator : public OpenMM::Integrator {

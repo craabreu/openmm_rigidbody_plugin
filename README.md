@@ -1,129 +1,96 @@
-OpenMM RigidBody Plugin (Under Construction)
-=======================
+OpenMM Rigid Body Plugin
+========================
 
 [![Build Status](https://travis-ci.org/craabreu/openmm_rigidbody_plugin.svg?branch=master)](https://travis-ci.org/craabreu/openmm_rigidbody_plugin)
 [![codecov.io](http://codecov.io/github/craabreu/openmm_rigidbody_plugin/coverage.svg?branch=master)](http://codecov.io/github/craabreu/openmm_rigidbody_plugin?branch=master)
 
-This project is an implemention of rigid-body dynamics for [OpenMM](http://openmm.org).
+This project is an implementation of rigid-body dynamics for [OpenMM](http://openmm.org). In its
+current version, it provides OpenMM with the following new features:
 
-The formulation is based on the paper:
+1. A class for performing symplectic, time-reversible, volume-preserving integration of Hamiltonian
+equations of motion for a system composed of rigid bodies and free atoms.
+
+2. An extension of the `ForceField` class which allows the definition of rigid-body templates and
+creation of systems containing rigid bodies.
+
+3. An extension of the `StateDataReporter` class which is able to compute the correct temperature
+(considering the reduced number of degrees of freedom) and report the translational and rotational
+parts of the kinetic energy.
+
+If you use this plugin, please cite the paper which contains the employed formulation:
 
 A. J. Silveira and C. R. A. Abreu, Molecular dynamics with rigid bodies: Alternative formulation
 and assessment of its limitations when employed to simulate liquid water, Journal of Chemical
 Physics 2017, 147, 124104, doi: [10.1063/1.5003636](https://doi.org/10.1063%2F1.5003636)
 
+This plugin was built upon the official [OpenMM Example Plugin](https://github.com/peastman/openmmexampleplugin).
 
-Building The Plugin
+
+Installation
+============
+
+In the following instructions, it is assumed that [OpenMM](http://openmm.org) is already installed
+in your system.
+
+Downloading and compiling the source code
+-----------------------------------------
+
+Clone the git repository locally:
+
+    git clone https://github.com/craabreu/openmm_rigidbody_plugin.git
+
+You will need [CMake](http://www.cmake.org) to build the plugin. Once it is installed, you can make:
+
+    cd openmm_rigidbody_plugin
+    mkdir build && cd build
+    cmake ..
+    make
+    make install
+    make PythonInstall
+
+The commands `make install` and `make PythonInstall` might require administrator privileges. The
+former will install the plugin libraries and the latter will install the python module. In order
+to test the installation, please run:
+
+    make test
+
+
+CPU and GPU Computing
+=====================
+
+In its current version, this plugin can be executed using either the Reference or the CUDA platform
+of OpenMM. The OpenCL platform is not supported.
+
+
+Python API Extension
+====================
+
+--> Content will be added soon.
+
+Python Code Example
 ===================
 
-This project uses [CMake](http://www.cmake.org) for its build system.  To build it, follow these
-steps:
-
-1. Create a directory in which to build the plugin.
-
-2. Run the CMake GUI or ccmake, specifying your new directory as the build directory and the top
-level directory of this project as the source directory.
-
-3. Press "Configure".
-
-4. Set OPENMM_DIR to point to the directory where OpenMM is installed.  This is needed to locate
-the OpenMM header files and libraries.
-
-5. Set CMAKE_INSTALL_PREFIX to the directory where the plugin should be installed.  Usually,
-this will be the same as OPENMM_DIR, so the plugin will be added to your OpenMM installation.
-
-6. If you plan to build the OpenCL platform, make sure that OPENCL_INCLUDE_DIR and
-OPENCL_LIBRARY are set correctly, and that RIGIDBODY_BUILD_OPENCL_LIB is selected.
-
-7. If you plan to build the CUDA platform, make sure that CUDA_TOOLKIT_ROOT_DIR is set correctly
-and that RIGIDBODY_BUILD_CUDA_LIB is selected.
-
-8. Press "Configure" again if necessary, then press "Generate".
-
-9. Use the build system you selected to build and install the plugin.  For rigidbody, if you
-selected Unix Makefiles, type `make install`.
-
-
-Test Cases
-==========
-
-To run all the test cases build the "test" target, for rigidbody by typing `make test`.
-
-This project contains several different directories for test cases: one for each platform, and
-another for serialization related code.  Each of these directories contains a CMakeLists.txt file
-that automatically creates a test from every file whose name starts with "Test" and ends with
-".cpp".  To create new tests, just add a new file to any of these directories.  The file should
-contain a `main()` function that executes any tests in the file and returns 0 if all tests were
-successful or 1 if any of them failed.
-
-Usually plugins are loaded dynamically at runtime, but that doesn't work well for test cases:
-you want to be able to run the tests before the plugin has yet been installed into the plugins
-directory.  Instead, the test cases directly link against the relevant plugin libraries.  But
-that creates another problem: when a plugin is dynamically loaded at runtime, its platforms and
-kernels are registered automatically, but that doesn't happen for code that statically links
-against it.  Therefore, the very first line of each `main()` function typically invokes a method
-to do the registration that _would_ have been done if the plugin were loaded automatically:
-
-    registerRigidBodyOpenCLKernelFactories();
-
-The OpenCL and CUDA test directories create three tests from each source file: the program is
-invoked three times while passing the strings "single", "mixed", and "double" as a command line
-argument.  The `main()` function should take this value and set it as the default precision for
-the platform:
-
-    if (argc > 1)
-        Platform::getPlatformByName("OpenCL").setPropertyDefaultValue("OpenCLPrecision", string(argv[1]));
-
-This causes the plugin to be tested in all three of the supported precision modes every time you
-run the test suite.
-
-
-OpenCL and CUDA Kernels
-=======================
-
-The OpenCL and CUDA platforms compile all of their kernels from source at runtime.  This
-requires you to store all your kernel source in a way that makes it accessible at runtime.  That
-turns out to be harder than you might think: simply storing source files on disk is brittle,
-since it requires some way of locating the files, and ordinary library files cannot contain
-arbitrary data along with the compiled code.  Another option is to store the kernel source as
-strings in the code, but that is very inconvenient to edit and maintain, especially since C++
-doesn't have a clean syntax for multi-line strings.
-
-This project (like OpenMM itself) uses a hybrid mechanism that provides the best of both
-approaches.  The source code for the OpenCL and CUDA implementations each include a "kernels"
-directory.  At build time, a CMake script loads every .cl (for OpenCL) or .cu (for CUDA) file
-contained in the directory and generates a class with all the file contents as strings.  For
-rigidbody, the OpenCL kernels directory contains a single file called rigidbodyForce.cl.  You can
-put anything you want into this file, and then C++ code can access the content of that file
-as `OpenCLRigidBodyKernelSources::rigidbodyForce`.  If you add more .cl files to this directory,
-correspondingly named variables will automatically be added to `OpenCLRigidBodyKernelSources`.
-
-
-Python API
-==========
-
-OpenMM uses [SWIG](http://www.swig.org) to generate its Python API.  SWIG takes an "interface
-file", which is essentially a C++ header file with some extra annotations added, as its input.
-It then generates a Python extension module exposing the C++ API in Python.
-
-When building OpenMM's Python API, the interface file is generated automatically from the C++
-API.  That guarantees the C++ and Python APIs are always synchronized with each other and avoids
-the potential bugs that would come from have duplicate definitions.  It takes a lot of complex
-processing to do that, though, and for a single plugin it's far simpler to just write the
-interface file by hand.  You will find it in the "python" directory.
-
-To build and install the Python API, build the "PythonInstall" target, for rigidbody by typing
-"make PythonInstall".  (If you are installing into the system Python, you may need to use sudo.)
-This runs SWIG to generate the C++ and Python files for the extension module
-(RigidBodyPluginWrapper.cpp and rigidbodyplugin.py), then runs a setup.py script to build and
-install the module.  Once you do that, you can use the plugin from your Python scripts:
-
-    from simtk.openmm import System
-    from rigidbodyplugin import RigidBodyForce
-    system = System()
-    force = RigidBodyForce()
-    system.addForce(force)
-
+```python
+import simtk.openmm as mm
+from simtk.openmm import app
+import rigidbodyplugin as rbmm
+pdb = app.PDBFile('config.pdb')
+forcefield = rbmm.ForceField('model.xml')
+forcefield.registerBodyTemplate('water', 'HOH')
+(system, bodies) = forcefield.createSystem(pdb.topology, nonbondedMethod=app.PME,
+                                           removeConstraints=True, removeForces=True)
+integrator = rbmm.RigidBodyIntegrator(1.0*unit.femtoseconds, bodies)
+integrator.setRotationMode(0)
+reporter = rbmm.StateDataReporter(stdout, 1, step=True, temperature=True,
+                                  translationalEnergy=True, rotationalEnergy=True)
+simulation = app.Simulation(pdb.topology, system, integrator,
+                            platform=mm.Platform.getPlatformByName('CUDA'),
+                            properties={'Precision': 'mixed'})
+simulation.context.setPositions(pdb.positions)
+simulation.context.setVelocitiesToTemperature(300*unit.kelvin)
+simulation.reporters.append(reporter)
+simulation.step(1000)
+```
 
 License
 =======
