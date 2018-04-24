@@ -9,7 +9,7 @@ dist: trusty
 
 env:
   global:
-    - CUDA_VERSION=8.0.61-1
+    - CUDA_VERSION="7.5-18"
 
 addons:
     apt:
