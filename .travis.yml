@@ -37,7 +37,7 @@ before_install:
   - conda config --add channels http://conda.binstar.org/omnia
   - conda create --yes -n py3 python=3.6
   - source activate py3
-  - conda install --yes openmm swig
+  - conda install --yes openmm-cuda75 swig
 install:
   - mkdir build
   - cd build
