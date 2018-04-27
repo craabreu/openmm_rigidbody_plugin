@@ -47,6 +47,9 @@ public:
     CudaIntegrateRigidBodyStepKernel(std::string name, const OpenMM::Platform& platform, OpenMM::CudaContext& cu) :
         IntegrateRigidBodyStepKernel(name, platform), cu(cu) {
     }
+
+    ~CudaIntegrateRigidBodyStepKernel();
+
     /**
      * Initialize the kernel.
      *
@@ -83,25 +86,25 @@ public:
     std::vector<double> getKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
 private:
     class ReorderListener;
-    ReorderListener* reorderListener;
+    ReorderListener* reorderListener = NULL;
 
     template <class real, class real2>
     std::vector<double> kineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator);
 
-    template <class real, class real2, class real3>
-    real allocateArrays(size_t bodyDataSize);
+    template <class real, class real2, class real3, class real4>
+    size_t allocateArrays();
 
     OpenMM::CudaContext& cu;
     CUfunction kernel1, kernel2, kernel3;
     CUfunction kineticEnergyKernel;
-    void* pinnedBuffer;
+    void* pinnedBuffer = NULL;
 
-    OpenMM::CudaArray atomLocation;
-    OpenMM::CudaArray bodyData;
-    OpenMM::CudaArray bodyFixedPos;
-    OpenMM::CudaArray savedPos;
-    OpenMM::CudaArray atomKE;
-    OpenMM::CudaArray bodyKE;
+    OpenMM::CudaArray* atomLocation = NULL;
+    OpenMM::CudaArray* bodyData = NULL;
+    OpenMM::CudaArray* bodyFixedPos = NULL;
+    OpenMM::CudaArray* savedPos = NULL;
+    OpenMM::CudaArray* atomKE = NULL;
+    OpenMM::CudaArray* bodyKE = NULL;
 
     int numBodies;
     int numFree;
