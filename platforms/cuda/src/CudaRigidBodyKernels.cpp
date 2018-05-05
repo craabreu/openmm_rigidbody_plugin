@@ -121,12 +121,15 @@ vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& cont
 
     // Call the first integration kernel.
 
+    CUdeviceptr bodyDataPtr = numBodies != 0 ? bodyData->getDevicePointer() : 0;
+    CUdeviceptr atomKEPtr = numFree != 0 ? atomKE->getDevicePointer() : 0;
+    CUdeviceptr bodyKEPtr = numBodies != 0 ? bodyKE->getDevicePointer() : 0;
     void* args[] = {&numFree, &numBodies,
                     &cu.getVelm().getDevicePointer(),
-                    &bodyData->getDevicePointer(),
+                    &bodyDataPtr,
                     &atomLocation->getDevicePointer(),
-                    &atomKE->getDevicePointer(),
-                    &bodyKE->getDevicePointer()};
+                    &atomKEPtr,
+                    &bodyKEPtr};
 
     cu.executeKernel(kineticEnergyKernel, args, numAtoms, 128);
 
@@ -317,17 +320,22 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
     bool useDouble = cu.getUseDoublePrecision() || cu.getUseMixedPrecision();
     int numThreads = max(numFree, numBodies);
 
+    CUdeviceptr posCorrection = cu.getUseMixedPrecision() ? cu.getPosqCorrection().getDevicePointer() : 0;
+    CUdeviceptr bodyDataPtr = numBodies != 0 ? bodyData->getDevicePointer() : 0;
+    CUdeviceptr bodyFixedPosPtr = numBodies != 0 ? bodyFixedPos->getDevicePointer() : 0;
+    CUdeviceptr savedPosPtr = numFree != 0 ? savedPos->getDevicePointer() : 0;
+
     void* args[] = {&numAtoms, &paddedNumAtoms, &numFree, &numBodies,
                     useDouble ? (void*) &timeStepDouble : (void*) &timeStepFloat,
                     &cu.getPosq().getDevicePointer(),
-                    &cu.getPosqCorrection().getDevicePointer(),
+                    &posCorrection,
                     &cu.getVelm().getDevicePointer(),
                     &cu.getForce().getDevicePointer(),
                     &integration.getPosDelta().getDevicePointer(),
-                    &bodyData->getDevicePointer(),
+                    &bodyDataPtr,
                     &atomLocation->getDevicePointer(),
-                    &bodyFixedPos->getDevicePointer(),
-                    &savedPos->getDevicePointer()};
+                    &bodyFixedPosPtr,
+                    &savedPosPtr};
 
     if (numFree != 0) {
         cu.executeKernel(kernel1, args, numFree, 128);

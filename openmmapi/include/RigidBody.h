@@ -28,7 +28,7 @@ public:
     void noSquishRotation(double dt, int n);
     void exactRotation(double dt);
 
-    int    N = 0;         // number of atoms
+    int    N;             // number of atoms
     int    dof;           // Number of degrees of freedom
     double mass;          // total body mass and its inverse
     Vec3   I;             // Principal moments of inertia and their inverses
