@@ -41,7 +41,8 @@ before_install:
 install:
   - mkdir build
   - cd build
-  - cmake .. -DENABLE_COVERAGE=On -DENABLE_COVERAGE_ALL=On -DCMAKE_INSTALL_PREFIX=$HOME/miniconda3/envs/py3/ -DOPENMM_DIR=$HOME/miniconda3/envs/py3/ -DSWIG_EXECUTABLE=$HOME/miniconda3/envs/py3/bin/swig
+  - export PY3=$HOME/miniconda3/envs/py3
+  - cmake .. -DENABLE_COVERAGE=On -DENABLE_COVERAGE_ALL=On -DBUILD_CUDA_TESTS=OFF -DCMAKE_INSTALL_PREFIX=$PY3 -DOPENMM_DIR=$PY3 -DSWIG_EXECUTABLE=$PY3/bin/swig
   - make VERBOSE=1
   - make install
   - make PythonInstall

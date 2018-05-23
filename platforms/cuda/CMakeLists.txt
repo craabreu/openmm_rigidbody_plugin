@@ -76,4 +76,7 @@ IF (APPLE)
     INSTALL(CODE "EXECUTE_PROCESS(COMMAND install_name_tool -change ${CUDA_LIBRARY} @loader_path/${CUDA_LIBRARY} ${CMAKE_INSTALL_PREFIX}/lib/plugins/lib${SHARED_TARGET}.dylib)")
 ENDIF (APPLE)
 
-SUBDIRS (tests)
+set(BUILD_CUDA_TESTS TRUE CACHE BOOL "Whether to build CUDA test cases")
+if(BUILD_CUDA_TESTS)
+    SUBDIRS (tests)
+endif(BUILD_CUDA_TESTS)
