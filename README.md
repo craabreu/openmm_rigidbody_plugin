@@ -25,9 +25,24 @@ Formulation
 
 If you use this plugin, please cite the paper which contains the employed formulation:
 
-A. J. Silveira and C. R. A. Abreu, Molecular dynamics with rigid bodies: Alternative formulation
-and assessment of its limitations when employed to simulate liquid water, Journal of Chemical
-Physics 2017, 147, 124104, doi: [10.1063/1.5003636](https://doi.org/10.1063%2F1.5003636)
+* Silveira and Abreu, Journal of Chemical Physics 2017, 147, 124104, doi: [10.1063/1.5003636](https://doi.org/10.1063%2F1.5003636)
+
+In Bibtex format:
+
+```
+@article{Silveira_and_Abreu_2017,
+    doi = {10.1063/1.5003636},
+    year = 2017,
+    publisher = {{AIP} Publishing},
+    volume = {147},
+    number = {12},
+    pages = {124104},
+    author = {Ana J. Silveira and Charlles R. A. Abreu},
+    title = {Molecular dynamics with rigid bodies: Alternative formulation and
+             assessment of its limitations when employed to simulate liquid water},
+    journal = {The Journal of Chemical Physics}
+}
+```
 
 Installation
 ============
