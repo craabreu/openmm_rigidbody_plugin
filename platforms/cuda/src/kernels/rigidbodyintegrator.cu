@@ -292,6 +292,10 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
         BodyData &body = bodyData[k];
 
+#ifdef COMPMOD
+    printf("%d\n",__LINE__);
+#endif
+
         // Half-step integration of velocities
         body.v += body.F*(body.invm*halfDt);
         body.pi += body.Ctau*dt;

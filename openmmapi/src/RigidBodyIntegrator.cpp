@@ -20,14 +20,21 @@ RigidBodyIntegrator::RigidBodyIntegrator(double stepSize, const vector<int>& bod
     setConstraintTolerance(1e-5);
     this->bodyIndices = bodyIndices;
     rotationMode = 0;
+    computeModifiedEnergies = false;
 }
 
 void RigidBodyIntegrator::setRotationMode(int mode) {
     if (mode < 0)
         throw OpenMMException("Rotation mode cannot be negative");
     if (owner != NULL)
-        throw OpenMMException("Cannot set rotation mode if integrator is bound to a context");
+        throw OpenMMException("Cannot set rotation mode: integrator already bound to a context");
     rotationMode = mode;
+}
+
+void RigidBodyIntegrator::setComputeModifiedEnergies(bool compute) {
+    if (owner != NULL)
+        throw OpenMMException("Cannot set modified energy computation: integrator already bound to a context");
+    computeModifiedEnergies = compute;
 }
 
 void RigidBodyIntegrator::initialize(ContextImpl& contextRef) {

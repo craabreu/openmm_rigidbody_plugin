@@ -196,6 +196,8 @@ void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context,
     int rotationMode = integrator.getRotationMode();
     defines["ROTATION"] = rotationMode == 0 ? "exactRotation" : "noSquishRotation";
     defines["NSPLIT"] = cu.intToString(rotationMode);
+    if (integrator.getComputeModifiedEnergies())
+        defines["COMPMOD"] = "";
     CUmodule module = cu.createModule(CudaRigidBodyKernelSources::vectorOps +
                                       CudaRigidBodyKernelSources::elliptic +
                                       CudaRigidBodyKernelSources::rigidbodyintegrator,
