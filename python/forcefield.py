@@ -161,7 +161,7 @@ class ForceField(app.ForceField):
             the newly created System
         bodyIndices : list(int)
             a list with the index of each atom's rigid body (index=0 for free atoms)
-        
+
         """
         mergeList = kwargs.pop('mergeList', None)
         removeForces = kwargs.pop('removeForces', False)

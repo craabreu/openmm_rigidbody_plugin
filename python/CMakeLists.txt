@@ -25,4 +25,3 @@ add_custom_command(TARGET PythonInstall
     COMMAND "${PYTHON_EXECUTABLE}" setup.py install
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 )
-

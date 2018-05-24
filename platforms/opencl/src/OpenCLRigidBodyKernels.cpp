@@ -98,9 +98,9 @@ void OpenCLIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const Rig
     cl.setTime(cl.getTime()+dt);
     cl.setStepCount(cl.getStepCount()+1);
     cl.reorderAtoms();
-    
+
     // Reduce UI lag.
-    
+
 #ifdef WIN32
     cl.getQueue().flush();
 #endif

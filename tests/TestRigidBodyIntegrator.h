@@ -213,16 +213,16 @@ void testConstrainedMasslessParticles(Platform& platform) {
     bool failed = false;
     try {
         // This should throw an exception.
-        
+
         Context context(system, integrator, platform);
     }
     catch (exception& ex) {
         failed = true;
     }
     ASSERT(failed);
-    
+
     // Now make both particles massless, which should work.
-    
+
     system.setParticleMass(1, 0.0);
     Context context(system, integrator, platform);
     context.setPositions(positions);

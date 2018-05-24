@@ -16,7 +16,7 @@ namespace RigidBodyPlugin {
 /**
  * This class represents a system of rigid bodies and free atoms
  */
- 
+
  class FreeAtom {
  public:
     int index;

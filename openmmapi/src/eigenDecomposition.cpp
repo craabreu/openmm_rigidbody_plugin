@@ -22,7 +22,7 @@ using namespace OpenMM;
 #define eps        std::numeric_limits<double>::epsilon()
 
 // Macros
-#define SQR(x)      ((x)*(x))                        // x^2 
+#define SQR(x)      ((x)*(x))                        // x^2
 
 //--------------------------------------------------------------------------------------------------
 
@@ -122,7 +122,7 @@ Mat3 eigenvectors(Mat3 A, Vec3& w) {
     q0 = Vec3(q1[0] + a[0][2]*w[0], q1[1] + a[1][2]*w[0], a[0][0]*a[1][1] - q1[2]);
     computeEigenvector( q0, a, n1, n2, thresh );
 
-    // Prepare calculation of second eigenvector     
+    // Prepare calculation of second eigenvector
     double  t = w[0] - w[1];
 
     // Is this eigenvalue degenerate?

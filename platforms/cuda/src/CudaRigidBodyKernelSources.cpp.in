@@ -33,4 +33,3 @@
 
 using namespace RigidBodyPlugin;
 using namespace std;
-

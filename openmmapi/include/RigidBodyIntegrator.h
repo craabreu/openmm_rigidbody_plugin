@@ -50,14 +50,14 @@ class OPENMM_EXPORT_RIGIDBODY RigidBodyIntegrator : public OpenMM::Integrator {
 public:
     /**
      * Create a RigidBodyIntegrator.
-     * 
+     *
      * @param stepSize the integration step size (in picoseconds)
      * @param bodyIndices the index of the rigid body to which each atom belongs (0 = free atom)
      */
     explicit RigidBodyIntegrator(double stepSize, const std::vector<int>& bodyIndices);
     /**
      * Set the integration mode for rotations.
-     * 
+     *
      * @param mode the mode for solving rotations: 0 = exact (default); n = NO-SQUISH with n steps
      */
     void setRotationMode(int mode);
@@ -67,7 +67,7 @@ public:
     int getRotationMode() const { return rotationMode; }
     /**
      * Advance a simulation through time by taking a series of time steps.
-     * 
+     *
      * @param steps   the number of time steps to take
      */
     void step(int steps);
@@ -76,7 +76,7 @@ public:
      */
     std::vector<int> getBodyIndices() const;
     /**
-     * Pointer to the system of rigid bodies 
+     * Pointer to the system of rigid bodies
      */
     const RigidBodySystem& getRigidBodySystem() const { return bodySystem; }
     /**
@@ -102,7 +102,7 @@ protected:
     /**
      * This will be called by the Context when the user modifies aspects of the context state, such
      * as positions, velocities, or parameters.
-     * 
+     *
      * @param changed     this specifies what aspect of the Context was changed
      */
     void stateChanged(State::DataType changed);

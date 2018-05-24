@@ -53,7 +53,7 @@ public:
     }
     /**
      * Initialize the kernel.
-     * 
+     *
      * @param system     the System this kernel will be applied to
      * @param integrator the RigidBodyIntegrator this kernel will be used for
      */
@@ -66,21 +66,21 @@ public:
     virtual void uploadBodySystem(RigidBodySystem& bodySystem) = 0;
     /**
      * Execute the kernel.
-     * 
+     *
      * @param context    the context in which to execute this kernel
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
     virtual void execute(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator) = 0;
     /**
      * Compute the kinetic energy.
-     * 
+     *
      * @param context    the context in which to execute this kernel
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
     virtual double computeKineticEnergy(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator) = 0;
     /**
      * Compute the different kinetic energy terms.
-     * 
+     *
      * @param context    the context in which to execute this kernel
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
