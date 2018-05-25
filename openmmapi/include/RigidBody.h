@@ -62,9 +62,11 @@ public:
     real3 r;     // center-of-mass position
     real3 v;     // center-of-mass velocity
     real3 F;     // resultant force
+    real3 rdot;  // time-derivative of center-of-mass position
     real4 q;     // orientation quaternion
     real4 pi;    // quaternion-conjugated momentum
     real4 Ctau;  // quaternion-frame resultant torque
+    real4 qdot;  // time-derivative of orientation quaternion
 };
 
 }

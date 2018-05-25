@@ -53,6 +53,8 @@ public:
     explicit RigidBodyIntegrator(double stepSize, const std::vector<int>& bodyIndices);
     void setRotationMode(int mode);
     int getRotationMode();
+    void setComputeModifiedEnergies(bool compute);
+    bool getComputeModifiedEnergies();
     RigidBodySystem getRigidBodySystem();
     std::vector<double> getKineticEnergies();
     void step(int steps);
