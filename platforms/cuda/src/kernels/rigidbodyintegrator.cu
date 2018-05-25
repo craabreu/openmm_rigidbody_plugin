@@ -111,47 +111,47 @@ inline __device__ mixed4 B3(mixed4 q) {
   Uniaxial rotations
 --------------------------------------------------------------------------------------------------*/
 
-inline __device__ void uniaxialRotationAxis1(BodyData& body, mixed dt) {
-    mixed4 Bq = B1(body.q);
-    mixed omegaDtBy2 = quarter*dot(body.pi, Bq)*dt*body.invI.x;
+inline __device__ void uniaxialRotationAxis1(mixed4& q, mixed4& pi, mixed3 invI, mixed dt) {
+    mixed4 Bq = B1(q);
+    mixed omegaDtBy2 = quarter*dot(pi, Bq)*dt*invI.x;
     mixed vsin = sin(omegaDtBy2);
     mixed vcos = cos(omegaDtBy2);
-    body.q = body.q*vcos + Bq*vsin;
-    body.pi = body.pi*vcos + B1(body.pi)*vsin;
+    q = q*vcos + Bq*vsin;
+    pi = pi*vcos + B1(pi)*vsin;
 }
 
-inline __device__ void uniaxialRotationAxis2(BodyData& body, mixed dt) {
-    mixed4 Bq = B2(body.q);
-    mixed omegaDtBy2 = quarter*dot(body.pi, Bq)*dt*body.invI.y;
+inline __device__ void uniaxialRotationAxis2(mixed4& q, mixed4& pi, mixed3 invI, mixed dt) {
+    mixed4 Bq = B2(q);
+    mixed omegaDtBy2 = quarter*dot(pi, Bq)*dt*invI.y;
     mixed vsin = sin(omegaDtBy2);
     mixed vcos = cos(omegaDtBy2);
-    body.q = body.q*vcos + Bq*vsin;
-    body.pi = body.pi*vcos + B2(body.pi)*vsin;
+    q = q*vcos + Bq*vsin;
+    pi = pi*vcos + B2(pi)*vsin;
 }
 
-inline __device__ void uniaxialRotationAxis3(BodyData& body, mixed dt) {
-    mixed4 Bq = B3(body.q);
-    mixed omegaDtBy2 = quarter*dot(body.pi, Bq)*dt*body.invI.z;
+inline __device__ void uniaxialRotationAxis3(mixed4& q, mixed4& pi, mixed3 invI, mixed dt) {
+    mixed4 Bq = B3(q);
+    mixed omegaDtBy2 = quarter*dot(pi, Bq)*dt*invI.z;
     mixed vsin = sin(omegaDtBy2);
     mixed vcos = cos(omegaDtBy2);
-    body.q = body.q*vcos + Bq*vsin;
-    body.pi = body.pi*vcos + B3(body.pi)*vsin;
+    q = q*vcos + Bq*vsin;
+    pi = pi*vcos + B3(pi)*vsin;
 }
 
 /*--------------------------------------------------------------------------------------------------
   NO_SQUISH rotation
 --------------------------------------------------------------------------------------------------*/
 
-inline __device__ void noSquishRotation(BodyData& body, mixed dt) {
+inline __device__ void noSquishRotation(mixed4& q, mixed4& pi, mixed3 invI, mixed dt) {
     mixed dtByN = dt/NSPLIT;
     mixed halfDtByN = 0.5*dtByN;
-    bool axis3 = body.invI.z != zero;
+    bool axis3 = invI.z != zero;
     for (int i = 0; i < NSPLIT; i++) {
-        if (axis3) uniaxialRotationAxis3(body, halfDtByN);
-        uniaxialRotationAxis2(body, halfDtByN);
-        uniaxialRotationAxis1(body, dtByN);
-        uniaxialRotationAxis2(body, halfDtByN);
-        if (axis3) uniaxialRotationAxis3(body, halfDtByN);
+        if (axis3) uniaxialRotationAxis3(q, pi, invI, halfDtByN);
+        uniaxialRotationAxis2(q, pi, invI, halfDtByN);
+        uniaxialRotationAxis1(q, pi, invI, dtByN);
+        uniaxialRotationAxis2(q, pi, invI, halfDtByN);
+        if (axis3) uniaxialRotationAxis3(q, pi, invI, halfDtByN);
     }
 }
 
@@ -163,13 +163,12 @@ inline __device__ void noSquishRotation(BodyData& body, mixed dt) {
 #define stairCase(x) ((x) > 0 ? (int)ceil((x) - 0.5) : (int)floor((x) + 0.5))
 #define PI           3.14159265358979323846264338328
 
-inline __device__ void exactRotation(BodyData& body, mixed dt) {
-    mixed3& invI = body.invI;
+inline __device__ void exactRotation(mixed4& q, mixed4& pi, mixed3 invI, mixed dt) {
     mixed3 I = make_mixed3(one/invI.x, one/invI.y, invI.z != zero ? one/invI.z : zero);
-    mixed3 Iw = Bt(body.q, body.pi)*half;
+    mixed3 Iw = Bt(q, pi)*half;
     mixed3 w0 = invI*Iw;
     mixed Lsq = Iw.y*Iw.y + Iw.z*Iw.z;
-    if (Lsq < EPSILON) return uniaxialRotationAxis1(body, dt);
+    if (Lsq < EPSILON) return uniaxialRotationAxis1(q, pi, invI, dt);
     Lsq += Iw.x*Iw.x;
     mixed L = sqrt(Lsq);
     mixed twoKr = dot(Iw, w0);
@@ -199,7 +198,7 @@ inline __device__ void exactRotation(BodyData& body, mixed dt) {
         u0 = s0*K;
         i0 = 0;
     }
-    mixed wp = -body.invI.y*a.x*a.z/(a.y*c13);
+    mixed wp = -invI.y*a.x*a.z/(a.y*c13);
     mixed u = wp*dt + u0;
     int jump = stairCase(u*inv2K) - i0;
     mixed sn, cn, dn, deltaF;
@@ -226,8 +225,8 @@ inline __device__ void exactRotation(BodyData& body, mixed dt) {
     mixed theta = (Lsq*(u - u0) + r3*deltaF)/(two*L*I.x*wp);
     mixed4 z = make_mixed4( Iw.z, Iw.y, L - Iw.x, zero)*cos(theta) +
                make_mixed4(-Iw.y, Iw.z, zero, L - Iw.x)*sin(theta);
-    body.q = normalize(z*dot(z0, body.q) + C(z, Ct(z0, body.q)));
-    body.pi = B(body.q, Iw*two);
+    q = normalize(z*dot(z0, q) + C(z, Ct(z0, q)));
+    pi = B(q, Iw*two);
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -298,7 +297,7 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
 
         // Full-step translation and rotation
         body.r += body.v*dt;
-        ROTATION(body, dt);
+        ROTATION(body.q, body.pi, body.invI, dt);
 
         // Update of atomic positions and their displacements from the center of mass
         int loc = body.loc;
