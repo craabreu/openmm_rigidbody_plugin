@@ -196,6 +196,7 @@ void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context,
     int rotationMode = integrator.getRotationMode();
     defines["ROTATION"] = rotationMode == 0 ? "exactRotation" : "noSquishRotation";
     defines["NSPLIT"] = cu.intToString(rotationMode);
+    defines["COMPMOD"] = cu.intToString(integrator.getComputeModifiedEnergies() ? 1 : 0);
     CUmodule module = cu.createModule(CudaRigidBodyKernelSources::vectorOps +
                                       CudaRigidBodyKernelSources::elliptic +
                                       CudaRigidBodyKernelSources::rigidbodyintegrator,
@@ -264,9 +265,11 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 body.r = make_double3(b.rcm[0], b.rcm[1], b.rcm[2]);
                 body.v = make_double3(b.pcm[0]/b.mass, b.pcm[1]/b.mass, b.pcm[2]/b.mass);
                 body.F = make_double3(b.force[0], b.force[1], b.force[2]);
+                body.rdot = make_double3(0.0, 0.0, 0.0);
                 body.q = make_double4(b.q[0], b.q[1], b.q[2], b.q[3]);
                 body.pi = make_double4(b.pi[0], b.pi[1], b.pi[2], b.pi[3]);
                 body.Ctau = make_double4(b.torque[0], b.torque[1], b.torque[2], b.torque[3]);
+                body.qdot = make_double4(0.0, 0.0, 0.0, 0.0);
             }
             bodyData->upload(data);
             double3* d = (double3*) pinnedBuffer;
@@ -289,9 +292,11 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 body.r = make_float3(b.rcm[0], b.rcm[1], b.rcm[2]);
                 body.v = make_float3(b.pcm[0]/b.mass, b.pcm[1]/b.mass, b.pcm[2]/b.mass);
                 body.F = make_float3(b.force[0], b.force[1], b.force[2]);
+                body.rdot = make_float3(0.0, 0.0, 0.0);
                 body.q = make_float4(b.q[0], b.q[1], b.q[2], b.q[3]);
                 body.pi = make_float4(b.pi[0], b.pi[1], b.pi[2], b.pi[3]);
                 body.Ctau = make_float4(b.torque[0], b.torque[1], b.torque[2], b.torque[3]);
+                body.qdot = make_float4(0.0, 0.0, 0.0, 0.0);
             }
             bodyData->upload(data);
 

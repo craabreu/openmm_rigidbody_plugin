@@ -66,6 +66,16 @@ public:
      */
     int getRotationMode() const { return rotationMode; }
     /**
+     * Set the tag for computing modified energies.
+     *
+     * @param compute true if modified energies are to be computed
+     */
+    void setComputeModifiedEnergies(bool compute);
+    /**
+     * Retrieve the tag for computing modified energies.
+     */
+    bool getComputeModifiedEnergies() const { return computeModifiedEnergies; }
+    /**
      * Advance a simulation through time by taking a series of time steps.
      *
      * @param steps   the number of time steps to take
@@ -115,6 +125,7 @@ private:
     RigidBodySystem bodySystem;
     OpenMM::Kernel kernel;
     int rotationMode;
+    bool computeModifiedEnergies;
 };
 
 } // namespace OpenMM
