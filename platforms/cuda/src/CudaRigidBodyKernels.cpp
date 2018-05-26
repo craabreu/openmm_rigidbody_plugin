@@ -137,24 +137,29 @@ vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& cont
     else
         cu.executeKernel(kineticEnergyKernel, args, numAtoms, 128);
 
-    vector<real> KE(2, 0.0);
-    if (numFree != 0) {
-        real* aKE = (real*)pinnedBuffer;
-        atomKE->download(aKE);
-        for (int i = 0; i < numFree; i++)
-            KE[0] += aKE[i];
-    }
+    vector<real> KE0(2, 0.0);
+    // if (numFree != 0) {
+    //     real* aKE = (real*)pinnedBuffer;
+    //     atomKE->download(aKE);
+    //     for (int i = 0; i < numFree; i++)
+    //         KE0[0] += aKE[i];
+    // }
     if (numBodies != 0) {
         real2* bKE = (real2*)pinnedBuffer;
         bodyKE->download(bKE);
         for (int i = 0; i < numBodies; i++) {
-            KE[0] += bKE[i].x;
-            KE[1] += bKE[i].y;
+            KE0[0] += bKE[i].x;
+            KE0[1] += bKE[i].y;
         }
     }
 
-    vector<double> doublePrecisionKE(KE.begin(), KE.end());
-    return doublePrecisionKE;
+    vector<double> KE(KE0.begin(), KE0.end());
+    if (modified) {
+        double dt6 = 6.0*integrator.getStepSize();
+        KE[0] /= dt6;
+        KE[1] /= dt6;
+    }
+    return KE;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -297,11 +302,11 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
                 body.r = make_float3(b.rcm[0], b.rcm[1], b.rcm[2]);
                 body.v = make_float3(b.pcm[0]/b.mass, b.pcm[1]/b.mass, b.pcm[2]/b.mass);
                 body.F = make_float3(b.force[0], b.force[1], b.force[2]);
-                body.rdot = make_float3(0.0, 0.0, 0.0);
+                body.rdot = make_float3(0.0f, 0.0f, 0.0f);
                 body.q = make_float4(b.q[0], b.q[1], b.q[2], b.q[3]);
                 body.pi = make_float4(b.pi[0], b.pi[1], b.pi[2], b.pi[3]);
                 body.Ctau = make_float4(b.torque[0], b.torque[1], b.torque[2], b.torque[3]);
-                body.qdot = make_float4(0.0, 0.0, 0.0, 0.0);
+                body.qdot = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
             }
             bodyData->upload(data);
 

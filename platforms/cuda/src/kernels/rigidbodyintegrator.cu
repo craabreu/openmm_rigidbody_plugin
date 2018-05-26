@@ -304,13 +304,14 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
         BodyData &body = bodyData[k];
 
+        mixed3 dv = body.F*(body.invm*halfDt);
 #if COMPMOD == 1
-        body.rdot = body.r*(-2.5) + (body.F*(body.invm*halfDt) - body.v)*halfDt;
-        body.qdot = virtualRotation(body, -dt)*0.5 - body.q*(1.0/3.0);
+        body.rdot = body.r*2.5 + (body.v - dv)*halfDt;
+        body.qdot = virtualRotation(body, -dt)*0.5 - body.q*3.0;
 #endif
 
         // Half-step integration of velocities
-        body.v += body.F*(body.invm*halfDt);
+        body.v += dv;
         body.pi += body.Ctau*dt;
 
         // Full-step translation and rotation
@@ -378,11 +379,12 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
         body.Ctau = C(body.q, tau);
 
         // Half-step integration of velocities
-        body.v += body.F*(body.invm*halfDt);
+        mixed3 dv = body.F*(body.invm*halfDt);
+        body.v += dv;
         body.pi += body.Ctau*dt;
 
 #if COMPMOD == 1
-        body.rdot += body.r*2.5 + (body.v + body.F*(body.invm*halfDt))*halfDt;
+        body.rdot = body.r*2.5 + (body.v + dv)*dt - body.rdot;
         body.qdot += body.q*1.5 + virtualRotation(body, dt);
         body.qdot -= body.q*dot(body.qdot, body.q);
 #endif
@@ -443,7 +445,7 @@ extern "C" __global__ void computeModifiedKineticEnergies(int numFree,
 
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
         BodyData &body = bodyData[k];
-        bodyKE[k].x = dot(body.rdot, body.v)*(half/body.invm);
-        bodyKE[k].y = dot(body.qdot, body.pi)*half;
+        bodyKE[k].x = dot(body.rdot, body.v)/body.invm;
+        bodyKE[k].y = dot(body.qdot, body.pi);
     }
 }

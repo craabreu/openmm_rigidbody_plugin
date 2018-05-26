@@ -38,6 +38,10 @@ namespace std {
     val = tuple(unit.Quantity(v, unit.kilojoule_per_mole) for v in val)
 %}
 
+%pythonappend RigidBodyPlugin::RigidBodyIntegrator::getModifiedKineticEnergies() %{
+    val = tuple(unit.Quantity(v, unit.kilojoule_per_mole) for v in val)
+%}
+
 namespace RigidBodyPlugin {
 
 class RigidBodySystem {
