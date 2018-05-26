@@ -121,3 +121,12 @@ vector<double> ReferenceIntegrateRigidBodyStepKernel::getKineticEnergies(Context
     KE[1] = bodySystem.getRotationalEnergy();
     return KE;
 }
+
+vector<double> ReferenceIntegrateRigidBodyStepKernel::getModifiedKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+    vector<Vec3>& V = extractVelocities(context);
+    bodySystem.computeKineticEnergies(V);
+    vector<double> KE(2);
+    KE[0] = bodySystem.getTranslationalEnergy();
+    KE[1] = bodySystem.getRotationalEnergy();
+    return KE;
+}

@@ -237,13 +237,9 @@ inline __device__ void exactRotation(mixed4& q, mixed4& pi, mixed3 invI, mixed d
 
 inline __device__ mixed4 virtualRotation(BodyData& body, mixed dt) {
     mixed4 q = body.q;
-    mixed4 pi = body.pi;
-    body.pi += body.Ctau*dt;
-    ROTATION(body, dt);
-    mixed4 qnew = body.q;
-    body.q = q;
-    body.pi = pi;
-    return qnew;
+    mixed4 pi = body.pi + body.Ctau*dt;
+    ROTATION(q, pi, body.invI, dt);
+    return q;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -310,7 +306,7 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
 
 #if COMPMOD == 1
         body.rdot = body.r*(-2.5) + (body.F*(body.invm*halfDt) - body.v)*halfDt;
-        body.qdot = virtualRotation( body, -dt )*0.5 - body.q*(1.0/3.0);
+        body.qdot = virtualRotation(body, -dt)*0.5 - body.q*(1.0/3.0);
 #endif
 
         // Half-step integration of velocities
@@ -387,7 +383,7 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
 
 #if COMPMOD == 1
         body.rdot += body.r*2.5 + (body.v + body.F*(body.invm*halfDt))*halfDt;
-        body.qdot += body.q*1.5 + virtualRotation( body, dt );
+        body.qdot += body.q*1.5 + virtualRotation(body, dt);
         body.qdot -= body.q*dot(body.qdot, body.q);
 #endif
 
@@ -425,5 +421,29 @@ extern "C" __global__ void computeKineticEnergies(int numFree,
         mixed3 L = Bt(body.q, body.pi)*half;
         bodyKE[k].x = dot(body.v/body.invm, body.v)*half;
         bodyKE[k].y = dot(L, L*body.invI)*half;
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Computation of modified kinetic energy terms.
+--------------------------------------------------------------------------------------------------*/
+
+extern "C" __global__ void computeModifiedKineticEnergies(int numFree,
+                                                          int numBodies,
+                                                          mixed4* __restrict__ velm,
+                                                          BodyData* __restrict__ bodyData,
+                                                          const int* __restrict__ atomLocation,
+                                                          mixed* __restrict__ atomKE,
+                                                          mixed2* __restrict__ bodyKE) {
+
+    for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
+        mixed4& v = velm[atomLocation[j]];
+        atomKE[j] = half*(v.x*v.x + v.y*v.y + v.z*v.z)/v.w;
+    }
+
+    for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
+        BodyData &body = bodyData[k];
+        bodyKE[k].x = dot(body.rdot, body.v)*(half/body.invm);
+        bodyKE[k].y = dot(body.qdot, body.pi)*half;
     }
 }

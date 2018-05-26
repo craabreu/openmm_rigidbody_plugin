@@ -115,7 +115,8 @@ private:
 
 template <class real, class real2>
 vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& context,
-                                                               const RigidBodyIntegrator& integrator) {
+                                                               const RigidBodyIntegrator& integrator,
+                                                               bool modified) {
     cu.setAsCurrent();
     int numAtoms = cu.getNumAtoms();
 
@@ -131,7 +132,10 @@ vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& cont
                     &atomKEPtr,
                     &bodyKEPtr};
 
-    cu.executeKernel(kineticEnergyKernel, args, numAtoms, 128);
+    if (modified)
+        cu.executeKernel(modifiedKineticEnergyKernel, args, numAtoms, 128);
+    else
+        cu.executeKernel(kineticEnergyKernel, args, numAtoms, 128);
 
     vector<real> KE(2, 0.0);
     if (numFree != 0) {
@@ -149,8 +153,8 @@ vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& cont
         }
     }
 
-    vector<double> dKE(KE.begin(), KE.end());
-    return dKE;
+    vector<double> doublePrecisionKE(KE.begin(), KE.end());
+    return doublePrecisionKE;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -205,6 +209,7 @@ void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context,
     kernel2 = cu.getKernel(module, "integrateRigidBodyPart2");
     kernel3 = cu.getKernel(module, "integrateRigidBodyPart3");
     kineticEnergyKernel = cu.getKernel(module, "computeKineticEnergies");
+    modifiedKineticEnergyKernel = cu.getKernel(module, "computeModifiedKineticEnergies");
 
     const RigidBodySystem& bodySystem = integrator.getRigidBodySystem();
     numBodies = bodySystem.getNumBodies();
@@ -369,9 +374,9 @@ double CudaIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& conte
 {
     vector<double> KE;
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
-        KE = kineticEnergy<double,double2>(context, integrator);
+        KE = kineticEnergy<double,double2>(context, integrator, false);
     else
-        KE = kineticEnergy<float,float2>(context, integrator);
+        KE = kineticEnergy<float,float2>(context, integrator, false);
     return std::accumulate(KE.begin(), KE.end(), 0.0);
 }
 
@@ -380,7 +385,16 @@ double CudaIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& conte
 
 vector<double> CudaIntegrateRigidBodyStepKernel::getKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
-        return kineticEnergy<double,double2>(context, integrator);
+        return kineticEnergy<double,double2>(context, integrator, false);
     else
-        return kineticEnergy<float,float2>(context, integrator);
+        return kineticEnergy<float,float2>(context, integrator, false);
+}
+/*--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------*/
+
+vector<double> CudaIntegrateRigidBodyStepKernel::getModifiedKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+    if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
+        return kineticEnergy<double,double2>(context, integrator, true);
+    else
+        return kineticEnergy<float,float2>(context, integrator, true);
 }

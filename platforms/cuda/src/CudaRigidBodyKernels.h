@@ -84,19 +84,26 @@ public:
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
     std::vector<double> getKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
+    /**
+     * Compute the translational and rotational terms of the modified kinetic energy.
+     *
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    std::vector<double> getModifiedKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
 private:
     class ReorderListener;
     ReorderListener* reorderListener = NULL;
 
     template <class real, class real2>
-    std::vector<double> kineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator);
+    std::vector<double> kineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator, bool modified);
 
     template <class real, class real2, class real3, class real4>
     size_t allocateArrays();
 
     OpenMM::CudaContext& cu;
     CUfunction kernel1, kernel2, kernel3;
-    CUfunction kineticEnergyKernel;
+    CUfunction kineticEnergyKernel, modifiedKineticEnergyKernel;
     void* pinnedBuffer = NULL;
 
     OpenMM::CudaArray* atomLocation = NULL;

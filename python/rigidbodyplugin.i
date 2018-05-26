@@ -57,6 +57,7 @@ public:
     bool getComputeModifiedEnergies();
     RigidBodySystem getRigidBodySystem();
     std::vector<double> getKineticEnergies();
+    std::vector<double> getModifiedKineticEnergies();
     void step(int steps);
 };
 

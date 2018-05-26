@@ -93,6 +93,10 @@ public:
      * Compute the different terms of the kinetic energy of the system at the current time.
      */
     std::vector<double> getKineticEnergies();
+    /**
+     * Compute the translational and rotational terms of the modified kinetic energy.
+     */
+    std::vector<double> getModifiedKineticEnergies();
 protected:
     /**
      * This will be called by the Context when it is created.  It informs the Integrator
