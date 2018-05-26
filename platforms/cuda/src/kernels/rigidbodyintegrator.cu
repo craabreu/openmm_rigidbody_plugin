@@ -427,10 +427,10 @@ extern "C" __global__ void computeKineticEnergies(int numFree,
 }
 
 /*--------------------------------------------------------------------------------------------------
-  Computation of modified kinetic energy terms.
+  Computation of refined kinetic energy terms.
 --------------------------------------------------------------------------------------------------*/
 
-extern "C" __global__ void computeModifiedKineticEnergies(int numFree,
+extern "C" __global__ void computeRefinedKineticEnergies(int numFree,
                                                           int numBodies,
                                                           mixed4* __restrict__ velm,
                                                           BodyData* __restrict__ bodyData,

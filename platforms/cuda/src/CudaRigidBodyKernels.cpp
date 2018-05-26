@@ -116,7 +116,7 @@ private:
 template <class real, class real2>
 vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& context,
                                                                const RigidBodyIntegrator& integrator,
-                                                               bool modified) {
+                                                               bool refined) {
     cu.setAsCurrent();
     int numAtoms = cu.getNumAtoms();
 
@@ -132,8 +132,8 @@ vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& cont
                     &atomKEPtr,
                     &bodyKEPtr};
 
-    if (modified)
-        cu.executeKernel(modifiedKineticEnergyKernel, args, numAtoms, 128);
+    if (refined)
+        cu.executeKernel(refinedKineticEnergyKernel, args, numAtoms, 128);
     else
         cu.executeKernel(kineticEnergyKernel, args, numAtoms, 128);
 
@@ -154,7 +154,7 @@ vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& cont
     }
 
     vector<double> KE(KE0.begin(), KE0.end());
-    if (modified) {
+    if (refined) {
         double dt6 = 6.0*integrator.getStepSize();
         KE[0] /= dt6;
         KE[1] /= dt6;
@@ -205,7 +205,7 @@ void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context,
     int rotationMode = integrator.getRotationMode();
     defines["ROTATION"] = rotationMode == 0 ? "exactRotation" : "noSquishRotation";
     defines["NSPLIT"] = cu.intToString(rotationMode);
-    defines["COMPMOD"] = cu.intToString(integrator.getComputeModifiedEnergies() ? 1 : 0);
+    defines["COMPMOD"] = cu.intToString(integrator.getComputeRefinedEnergies() ? 1 : 0);
     CUmodule module = cu.createModule(CudaRigidBodyKernelSources::vectorOps +
                                       CudaRigidBodyKernelSources::elliptic +
                                       CudaRigidBodyKernelSources::rigidbodyintegrator,
@@ -214,7 +214,7 @@ void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context,
     kernel2 = cu.getKernel(module, "integrateRigidBodyPart2");
     kernel3 = cu.getKernel(module, "integrateRigidBodyPart3");
     kineticEnergyKernel = cu.getKernel(module, "computeKineticEnergies");
-    modifiedKineticEnergyKernel = cu.getKernel(module, "computeModifiedKineticEnergies");
+    refinedKineticEnergyKernel = cu.getKernel(module, "computeRefinedKineticEnergies");
 
     const RigidBodySystem& bodySystem = integrator.getRigidBodySystem();
     numBodies = bodySystem.getNumBodies();
@@ -397,7 +397,7 @@ vector<double> CudaIntegrateRigidBodyStepKernel::getKineticEnergies(ContextImpl&
 /*--------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------*/
 
-vector<double> CudaIntegrateRigidBodyStepKernel::getModifiedKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+vector<double> CudaIntegrateRigidBodyStepKernel::getRefinedKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
         return kineticEnergy<double,double2>(context, integrator, true);
     else

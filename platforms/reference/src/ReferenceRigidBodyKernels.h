@@ -84,12 +84,12 @@ public:
      */
     std::vector<double> getKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
     /**
-     * Compute the translational and rotational terms of the modified kinetic energy.
+     * Compute the translational and rotational terms of the refined kinetic energy.
      *
      * @param context    the context in which to execute this kernel
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
-    std::vector<double> getModifiedKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
+    std::vector<double> getRefinedKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
 private:
     OpenMM::ReferencePlatform::PlatformData& data;
     RigidBodySystem bodySystem;

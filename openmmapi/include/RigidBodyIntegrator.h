@@ -66,15 +66,15 @@ public:
      */
     int getRotationMode() const { return rotationMode; }
     /**
-     * Set the tag for computing modified energies.
+     * Set the tag for computing refined energies.
      *
-     * @param compute true if modified energies are to be computed
+     * @param compute true if refined energies are to be computed
      */
-    void setComputeModifiedEnergies(bool compute);
+    void setComputeRefinedEnergies(bool compute);
     /**
-     * Retrieve the tag for computing modified energies.
+     * Retrieve the tag for computing refined energies.
      */
-    bool getComputeModifiedEnergies() const { return computeModifiedEnergies; }
+    bool getComputeRefinedEnergies() const { return computeRefinedEnergies; }
     /**
      * Advance a simulation through time by taking a series of time steps.
      *
@@ -94,9 +94,9 @@ public:
      */
     std::vector<double> getKineticEnergies();
     /**
-     * Compute the translational and rotational terms of the modified kinetic energy.
+     * Compute the translational and rotational terms of the refined kinetic energy.
      */
-    std::vector<double> getModifiedKineticEnergies();
+    std::vector<double> getRefinedKineticEnergies();
 protected:
     /**
      * This will be called by the Context when it is created.  It informs the Integrator
@@ -129,7 +129,7 @@ private:
     RigidBodySystem bodySystem;
     OpenMM::Kernel kernel;
     int rotationMode;
-    bool computeModifiedEnergies;
+    bool computeRefinedEnergies;
 };
 
 } // namespace OpenMM

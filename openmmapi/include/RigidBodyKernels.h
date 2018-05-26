@@ -86,12 +86,12 @@ public:
      */
     virtual std::vector<double> getKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator) = 0;
     /**
-     * Compute the translational and rotational terms of the modified kinetic energy.
+     * Compute the translational and rotational terms of the refined kinetic energy.
      *
      * @param context    the context in which to execute this kernel
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
-    virtual std::vector<double> getModifiedKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator) = 0;
+    virtual std::vector<double> getRefinedKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator) = 0;
 };
 
 } // namespace RigidBodyPlugin

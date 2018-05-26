@@ -8,11 +8,11 @@ class StateDataReporter(app.StateDataReporter):
     def __init__(self, *args, **kwargs):
         self._translationalEnergy = kwargs.pop('translationalEnergy', False)
         self._rotationalEnergy = kwargs.pop('rotationalEnergy', False)
-        self._modifiedKineticEnergy = kwargs.pop('modifiedKineticEnergy', False)
-#         self._modifiedPotentialEnergy = kwargs.pop('modifiedPotentialEnergy', False)
-        self._modifiedTranslationalEnergy = kwargs.pop('modifiedTranslationalEnergy', False)
-        self._modifiedRotationalEnergy = kwargs.pop('modifiedRotationalEnergy', False)
-#         self._modifiedTotalEnergy = kwargs.pop('_modifiedTotalEnergy', False)
+        self._refinedKineticEnergy = kwargs.pop('refinedKineticEnergy', False)
+#         self._refinedPotentialEnergy = kwargs.pop('refinedPotentialEnergy', False)
+        self._refinedTranslationalEnergy = kwargs.pop('refinedTranslationalEnergy', False)
+        self._refinedRotationalEnergy = kwargs.pop('refinedRotationalEnergy', False)
+#         self._refinedTotalEnergy = kwargs.pop('_refinedTotalEnergy', False)
         super(StateDataReporter, self).__init__(*args, **kwargs)
 
     def _initializeConstants(self, simulation):
@@ -30,12 +30,12 @@ class StateDataReporter(app.StateDataReporter):
             headers.append('Translational Energy (kJ/mole)')
         if self._rotationalEnergy:
             headers.append('Rotational Energy (kJ/mole)')
-        if self._modifiedKineticEnergy:
-            headers.append('Modified Kinetic Energy (kJ/mole)')
-        if self._modifiedTranslationalEnergy:
-            headers.append('Modified Translational Energy (kJ/mole)')
-        if self._modifiedRotationalEnergy:
-            headers.append('Modified Rotational Energy (kJ/mole)')
+        if self._refinedKineticEnergy:
+            headers.append('Refined Kinetic Energy (kJ/mole)')
+        if self._refinedTranslationalEnergy:
+            headers.append('Refined Translational Energy (kJ/mole)')
+        if self._refinedRotationalEnergy:
+            headers.append('Refined Rotational Energy (kJ/mole)')
         return headers
 
     def _constructReportValues(self, simulation, state):
@@ -43,9 +43,9 @@ class StateDataReporter(app.StateDataReporter):
         if _isRigid(simulation):
             if (self._translationalEnergy or self._rotationalEnergy):
                 KE = simulation.integrator.getKineticEnergies()
-            if (self._modifiedKineticEnergy or self._modifiedTranslationalEnergy or self._modifiedRotationalEnergy):
-                modKE = simulation.integrator.getModifiedKineticEnergies()
-        elif (self._translationalEnergy or self._modifiedTranslationalEnergy or self._modifiedKineticEnergy):
+            if (self._refinedKineticEnergy or self._refinedTranslationalEnergy or self._refinedRotationalEnergy):
+                modKE = simulation.integrator.getRefinedKineticEnergies()
+        elif (self._translationalEnergy or self._refinedTranslationalEnergy or self._refinedKineticEnergy):
             KE = modKE = [state.getKineticEnergy(), 0.0]
         if self._translationalEnergy:
             value = KE[0]
@@ -53,13 +53,13 @@ class StateDataReporter(app.StateDataReporter):
         if self._rotationalEnergy:
             value = KE[1]
             values.append(value.value_in_unit(unit.kilojoules_per_mole))
-        if self._modifiedKineticEnergy:
+        if self._refinedKineticEnergy:
             value = modKE[0] + modKE[1]
             values.append(value.value_in_unit(unit.kilojoules_per_mole))
-        if self._modifiedTranslationalEnergy:
+        if self._refinedTranslationalEnergy:
             value = modKE[0]
             values.append(value.value_in_unit(unit.kilojoules_per_mole))
-        if self._modifiedRotationalEnergy:
+        if self._refinedRotationalEnergy:
             value = modKE[1]
             values.append(value.value_in_unit(unit.kilojoules_per_mole))
         return values

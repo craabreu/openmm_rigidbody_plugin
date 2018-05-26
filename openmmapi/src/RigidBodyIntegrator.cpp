@@ -20,7 +20,7 @@ RigidBodyIntegrator::RigidBodyIntegrator(double stepSize, const vector<int>& bod
     setConstraintTolerance(1e-5);
     this->bodyIndices = bodyIndices;
     rotationMode = 0;
-    computeModifiedEnergies = false;
+    computeRefinedEnergies = false;
 }
 
 void RigidBodyIntegrator::setRotationMode(int mode) {
@@ -31,10 +31,10 @@ void RigidBodyIntegrator::setRotationMode(int mode) {
     rotationMode = mode;
 }
 
-void RigidBodyIntegrator::setComputeModifiedEnergies(bool compute) {
+void RigidBodyIntegrator::setComputeRefinedEnergies(bool compute) {
     if (owner != NULL)
-        throw OpenMMException("Cannot set modified energy computation: integrator already bound to a context");
-    computeModifiedEnergies = compute;
+        throw OpenMMException("Cannot set refined energy computation: integrator already bound to a context");
+    computeRefinedEnergies = compute;
 }
 
 void RigidBodyIntegrator::initialize(ContextImpl& contextRef) {
@@ -81,8 +81,8 @@ std::vector<double> RigidBodyIntegrator::getKineticEnergies() {
     return kernel.getAs<IntegrateRigidBodyStepKernel>().getKineticEnergies(*context, *this);
 }
 
-std::vector<double> RigidBodyIntegrator::getModifiedKineticEnergies() {
-    return kernel.getAs<IntegrateRigidBodyStepKernel>().getModifiedKineticEnergies(*context, *this);
+std::vector<double> RigidBodyIntegrator::getRefinedKineticEnergies() {
+    return kernel.getAs<IntegrateRigidBodyStepKernel>().getRefinedKineticEnergies(*context, *this);
 }
 
 std::vector<int> RigidBodyIntegrator::getBodyIndices() const {

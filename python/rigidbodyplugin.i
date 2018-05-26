@@ -38,7 +38,7 @@ namespace std {
     val = tuple(unit.Quantity(v, unit.kilojoule_per_mole) for v in val)
 %}
 
-%pythonappend RigidBodyPlugin::RigidBodyIntegrator::getModifiedKineticEnergies() %{
+%pythonappend RigidBodyPlugin::RigidBodyIntegrator::getRefinedKineticEnergies() %{
     val = tuple(unit.Quantity(v, unit.kilojoule_per_mole) for v in val)
 %}
 
@@ -57,11 +57,11 @@ public:
     explicit RigidBodyIntegrator(double stepSize, const std::vector<int>& bodyIndices);
     void setRotationMode(int mode);
     int getRotationMode();
-    void setComputeModifiedEnergies(bool compute);
-    bool getComputeModifiedEnergies();
+    void setComputeRefinedEnergies(bool compute);
+    bool getComputeRefinedEnergies();
     RigidBodySystem getRigidBodySystem();
     std::vector<double> getKineticEnergies();
-    std::vector<double> getModifiedKineticEnergies();
+    std::vector<double> getRefinedKineticEnergies();
     void step(int steps);
 };
 
