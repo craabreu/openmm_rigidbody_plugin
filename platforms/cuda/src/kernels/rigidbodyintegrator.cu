@@ -246,8 +246,7 @@ inline __device__ mixed4 virtualRotation(BodyData& body, mixed dt) {
   Perform the initial step of Rigid Body integration.
 --------------------------------------------------------------------------------------------------*/
 
-extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
-                                                   int stride,
+extern "C" __global__ void freeAtomsDelta(int stride,
                                                    int numFree,
                                                    int numBodies,
                                                    const mixed dt,
@@ -261,17 +260,12 @@ extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
                                                    const mixed3* __restrict__ bodyFixedPos,
                                                    mixed3* __restrict__ savedPos) {
 
-    const mixed scale = one/(mixed)0x100000000;
-    const mixed halfDt = half*dt;
+    const mixed scale = half*dt/(mixed)0x100000000;
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         int i = atomLocation[j];
-        mixed4& velocity = velm[i];
-        mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
-        mixed3 v = trim(velocity) + f*(velocity.w*halfDt);
-        mixed3 delta = v*dt;
-        velocity = fuse(v, velocity.w);
-        posDelta[i] = fuse(delta, zero);
-        savedPos[j] = loadPos(posq, posqCorrection, i) + delta;
+        mixed4& v = velm[i];
+        mixed3 dv = make_mixed3(force[i], force[i+stride], force[i+stride*2])*(scale*v.w);
+        posDelta[i] = fuse((trim(v) + dv)*dt, zero);
     }
 }
 
@@ -279,8 +273,7 @@ extern "C" __global__ void integrateRigidBodyPart1(int numAtoms,
   Perform the final step of Rigid Body integration.
 --------------------------------------------------------------------------------------------------*/
 
-extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
-                                                   int stride,
+extern "C" __global__ void integrateRigidBodyPart1(int stride,
                                                    int numFree,
                                                    int numBodies,
                                                    const mixed dt,
@@ -294,23 +287,28 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
                                                    const mixed3* __restrict__ bodyFixedPos,
                                                    mixed3* __restrict__ savedPos) {
 
+    const mixed halfDt = half*dt;
+    const mixed scale = halfDt/(mixed)0x100000000;
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         int i = atomLocation[j];
         mixed3 pos = loadPos(posq, posqCorrection, i) + trim(posDelta[i]);
+        savedPos[j] = pos;
         storePos(posq, posqCorrection, i, pos);
+        mixed4& v = velm[i];
+        mixed3 dv = make_mixed3(force[i], force[i+stride], force[i+stride*2])*(scale*v.w);
+        v = fuse(trim(v) + dv, v.w);
     }
 
-    const mixed halfDt = half*dt;
+    // const mixed halfDt = half*dt;
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
         BodyData &body = bodyData[k];
 
-        mixed3 dv = body.F*(body.invm*halfDt);
-#if COMPMOD == 1
-        body.rdot = body.r*2.5 + (body.v - dv)*halfDt;
-        body.qdot = virtualRotation(body, -dt)*0.5 - body.q*3.0;
-#endif
-
         // Half-step integration of velocities
+        mixed3 dv = body.F*(body.invm*halfDt);
+#       if COMPMOD == 1
+            body.rdot = body.r*2.5 + (body.v - dv)*halfDt;
+            body.qdot = virtualRotation(body, -dt)*0.5 - body.q*3.0;
+#       endif
         body.v += dv;
         body.pi += body.Ctau*dt;
 
@@ -334,8 +332,7 @@ extern "C" __global__ void integrateRigidBodyPart2(int numAtoms,
   Perform the final step of Rigid Body integration.
 --------------------------------------------------------------------------------------------------*/
 
-extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
-                                                   int stride,
+extern "C" __global__ void integrateRigidBodyPart2(int stride,
                                                    int numFree,
                                                    int numBodies,
                                                    const mixed dt,
@@ -382,12 +379,11 @@ extern "C" __global__ void integrateRigidBodyPart3(int numAtoms,
         mixed3 dv = body.F*(body.invm*halfDt);
         body.v += dv;
         body.pi += body.Ctau*dt;
-
-#if COMPMOD == 1
-        body.rdot = body.r*2.5 + (body.v + dv)*dt - body.rdot;
-        body.qdot += body.q*1.5 + virtualRotation(body, dt);
-        body.qdot -= body.q*dot(body.qdot, body.q);
-#endif
+#       if COMPMOD == 1
+            body.rdot = body.r*2.5 + (body.v + dv)*dt - body.rdot;
+            body.qdot += body.q*1.5 + virtualRotation(body, dt);
+            body.qdot -= body.q*dot(body.qdot, body.q);
+#       endif
 
         // Update of atomic velocities
         mixed3 omega = (body.invI*Bt(body.q, body.pi))*half;

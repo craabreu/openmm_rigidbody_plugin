@@ -138,12 +138,12 @@ vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& cont
         cu.executeKernel(kineticEnergyKernel, args, numAtoms, 128);
 
     vector<real> KE0(2, 0.0);
-    // if (numFree != 0) {
-    //     real* aKE = (real*)pinnedBuffer;
-    //     atomKE->download(aKE);
-    //     for (int i = 0; i < numFree; i++)
-    //         KE0[0] += aKE[i];
-    // }
+    if (numFree != 0) {
+        real* aKE = (real*)pinnedBuffer;
+        atomKE->download(aKE);
+        for (int i = 0; i < numFree; i++)
+            KE0[0] += aKE[i];
+    }
     if (numBodies != 0) {
         real2* bKE = (real2*)pinnedBuffer;
         bodyKE->download(bKE);
@@ -210,9 +210,9 @@ void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context,
                                       CudaRigidBodyKernelSources::elliptic +
                                       CudaRigidBodyKernelSources::rigidbodyintegrator,
                                       defines, "");
-    kernel1 = cu.getKernel(module, "integrateRigidBodyPart1");
-    kernel2 = cu.getKernel(module, "integrateRigidBodyPart2");
-    kernel3 = cu.getKernel(module, "integrateRigidBodyPart3");
+    freeAtomsDelta = cu.getKernel(module, "freeAtomsDelta");
+    rigidBodiesPart1 = cu.getKernel(module, "integrateRigidBodyPart1");
+    rigidBodiesPart2 = cu.getKernel(module, "integrateRigidBodyPart2");
     kineticEnergyKernel = cu.getKernel(module, "computeKineticEnergies");
     refinedKineticEnergyKernel = cu.getKernel(module, "computeRefinedKineticEnergies");
 
@@ -340,7 +340,7 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
     CUdeviceptr bodyFixedPosPtr = numBodies != 0 ? bodyFixedPos->getDevicePointer() : 0;
     CUdeviceptr savedPosPtr = numFree != 0 ? savedPos->getDevicePointer() : 0;
 
-    void* args[] = {&numAtoms, &paddedNumAtoms, &numFree, &numBodies,
+    void* args[] = {&paddedNumAtoms, &numFree, &numBodies,
                     useDouble ? (void*) &timeStepDouble : (void*) &timeStepFloat,
                     &cu.getPosq().getDevicePointer(),
                     &posCorrection,
@@ -353,16 +353,16 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
                     &savedPosPtr};
 
     if (numFree != 0) {
-        cu.executeKernel(kernel1, args, numFree, 128);
+        cu.executeKernel(freeAtomsDelta, args, numFree, 128);
         integration.applyConstraints(integrator.getConstraintTolerance());
     }
 
-    cu.executeKernel(kernel2, args, numThreads, 128);
+    cu.executeKernel(rigidBodiesPart1, args, numThreads, 128);
     integration.computeVirtualSites();
 
     context.calcForcesAndEnergy(true, false);
 
-    cu.executeKernel(kernel3, args, numThreads, 128);
+    cu.executeKernel(rigidBodiesPart2, args, numThreads, 128);
 
     if (numFree != 0)
         integration.applyVelocityConstraints(integrator.getConstraintTolerance());
