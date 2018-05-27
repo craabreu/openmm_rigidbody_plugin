@@ -243,22 +243,31 @@ inline __device__ mixed4 virtualRotation(BodyData& body, mixed dt) {
 }
 
 /*--------------------------------------------------------------------------------------------------
+  Arguments for all integration-related functions.
+--------------------------------------------------------------------------------------------------*/
+
+#define args int stride, \
+             int numFree, \
+             int numBodies, \
+             const mixed dt, \
+             real4* __restrict__ posq, \
+             real4* __restrict__ posqCorrection, \
+             mixed4* __restrict__ velm, \
+             const long long* __restrict__ force, \
+             mixed4* __restrict__ posDelta, \
+             BodyData* __restrict__ bodyData, \
+             const int* __restrict__ atomLocation, \
+             const mixed3* __restrict__ bodyFixedPos, \
+             mixed3* __restrict__ savedPos, \
+             int posDotRestart, \
+             int posDotFactor, \
+             mixed3* __restrict__ posDot
+
+/*--------------------------------------------------------------------------------------------------
   Perform the initial step of Rigid Body integration.
 --------------------------------------------------------------------------------------------------*/
 
-extern "C" __global__ void freeAtomsDelta(int stride,
-                                                   int numFree,
-                                                   int numBodies,
-                                                   const mixed dt,
-                                                   real4* __restrict__ posq,
-                                                   real4* __restrict__ posqCorrection,
-                                                   mixed4* __restrict__ velm,
-                                                   const long long* __restrict__ force,
-                                                   mixed4* __restrict__ posDelta,
-                                                   BodyData* __restrict__ bodyData,
-                                                   const int* __restrict__ atomLocation,
-                                                   const mixed3* __restrict__ bodyFixedPos,
-                                                   mixed3* __restrict__ savedPos) {
+extern "C" __global__ void freeAtomsDelta(args) {
 
     const mixed scale = half*dt/(mixed)0x100000000;
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
@@ -270,22 +279,23 @@ extern "C" __global__ void freeAtomsDelta(int stride,
 }
 
 /*--------------------------------------------------------------------------------------------------
+  Accumulate time-derivative of free atom positions:
+--------------------------------------------------------------------------------------------------*/
+
+extern "C" __global__ void freeAtomsDot(args) {
+    mixed factor = posDotFactor;
+    for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x)
+        if (posDotRestart)
+            posDot[j] = trim(posDelta[atomLocation[j]])*factor;
+        else
+            posDot[j] += trim(posDelta[atomLocation[j]])*factor;
+}
+
+/*--------------------------------------------------------------------------------------------------
   Perform the final step of Rigid Body integration.
 --------------------------------------------------------------------------------------------------*/
 
-extern "C" __global__ void integrateRigidBodyPart1(int stride,
-                                                   int numFree,
-                                                   int numBodies,
-                                                   const mixed dt,
-                                                   real4* __restrict__ posq,
-                                                   real4* __restrict__ posqCorrection,
-                                                   mixed4* __restrict__ velm,
-                                                   const long long* __restrict__ force,
-                                                   mixed4* __restrict__ posDelta,
-                                                   BodyData* __restrict__ bodyData,
-                                                   const int* __restrict__ atomLocation,
-                                                   const mixed3* __restrict__ bodyFixedPos,
-                                                   mixed3* __restrict__ savedPos) {
+extern "C" __global__ void integrateRigidBodyPart1(args) {
 
     const mixed halfDt = half*dt;
     const mixed scale = halfDt/(mixed)0x100000000;
@@ -332,19 +342,7 @@ extern "C" __global__ void integrateRigidBodyPart1(int stride,
   Perform the final step of Rigid Body integration.
 --------------------------------------------------------------------------------------------------*/
 
-extern "C" __global__ void integrateRigidBodyPart2(int stride,
-                                                   int numFree,
-                                                   int numBodies,
-                                                   const mixed dt,
-                                                   real4* __restrict__ posq,
-                                                   real4* __restrict__ posqCorrection,
-                                                   mixed4* __restrict__ velm,
-                                                   const long long* __restrict__ force,
-                                                   mixed4* __restrict__ posDelta,
-                                                   BodyData* __restrict__ bodyData,
-                                                   const int* __restrict__ atomLocation,
-                                                   const mixed3* __restrict__ bodyFixedPos,
-                                                   mixed3* __restrict__ savedPos) {
+extern "C" __global__ void integrateRigidBodyPart2(args) {
 
     const mixed scale = one/(mixed)0x100000000;
     const mixed halfDt = half*dt;
@@ -398,16 +396,23 @@ extern "C" __global__ void integrateRigidBodyPart2(int stride,
 }
 
 /*--------------------------------------------------------------------------------------------------
+  Arguments for all kinetic-energy-related functions.
+--------------------------------------------------------------------------------------------------*/
+
+#define KEargs int numFree, \
+               int numBodies, \
+               mixed4* __restrict__ velm, \
+               BodyData* __restrict__ bodyData, \
+               const int* __restrict__ atomLocation, \
+               mixed3* __restrict__ posDot, \
+               mixed* __restrict__ atomKE, \
+               mixed2* __restrict__ bodyKE
+
+/*--------------------------------------------------------------------------------------------------
   Computation of kinetic energy.
 --------------------------------------------------------------------------------------------------*/
 
-extern "C" __global__ void computeKineticEnergies(int numFree,
-                                                  int numBodies,
-                                                  mixed4* __restrict__ velm,
-                                                  BodyData* __restrict__ bodyData,
-                                                  const int* __restrict__ atomLocation,
-                                                  mixed* __restrict__ atomKE,
-                                                  mixed2* __restrict__ bodyKE) {
+extern "C" __global__ void computeKineticEnergies(KEargs) {
 
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         mixed4& v = velm[atomLocation[j]];
@@ -426,17 +431,11 @@ extern "C" __global__ void computeKineticEnergies(int numFree,
   Computation of refined kinetic energy terms.
 --------------------------------------------------------------------------------------------------*/
 
-extern "C" __global__ void computeRefinedKineticEnergies(int numFree,
-                                                          int numBodies,
-                                                          mixed4* __restrict__ velm,
-                                                          BodyData* __restrict__ bodyData,
-                                                          const int* __restrict__ atomLocation,
-                                                          mixed* __restrict__ atomKE,
-                                                          mixed2* __restrict__ bodyKE) {
+extern "C" __global__ void computeRefinedKineticEnergies(KEargs) {
 
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         mixed4& v = velm[atomLocation[j]];
-        atomKE[j] = half*(v.x*v.x + v.y*v.y + v.z*v.z)/v.w;
+        atomKE[j] = dot(posDot[j], trim(v))*(half/v.w);
     }
 
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {

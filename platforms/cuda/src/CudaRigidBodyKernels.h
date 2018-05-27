@@ -102,7 +102,8 @@ private:
     size_t allocateArrays();
 
     OpenMM::CudaContext& cu;
-    CUfunction freeAtomsDelta, rigidBodiesPart1, rigidBodiesPart2;
+    CUfunction freeAtomsDelta, freeAtomsDot;
+    CUfunction rigidBodiesPart1, rigidBodiesPart2;
     CUfunction kineticEnergyKernel, refinedKineticEnergyKernel;
     void* pinnedBuffer = NULL;
 
@@ -112,6 +113,7 @@ private:
     OpenMM::CudaArray* savedPos = NULL;
     OpenMM::CudaArray* atomKE = NULL;
     OpenMM::CudaArray* bodyKE = NULL;
+    OpenMM::CudaArray* rdot = NULL;
 
     int numBodies;
     int numFree;

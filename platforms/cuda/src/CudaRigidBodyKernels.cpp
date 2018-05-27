@@ -58,6 +58,7 @@ CudaIntegrateRigidBodyStepKernel::~CudaIntegrateRigidBodyStepKernel() {
         delete savedPos;
         delete atomKE;
         delete bodyKE;
+        delete rdot;
     }
 }
 
@@ -129,6 +130,7 @@ vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& cont
                     &cu.getVelm().getDevicePointer(),
                     &bodyDataPtr,
                     &atomLocation->getDevicePointer(),
+                    &rdot->getDevicePointer(),
                     &atomKEPtr,
                     &bodyKEPtr};
 
@@ -189,6 +191,7 @@ size_t CudaIntegrateRigidBodyStepKernel::allocateArrays() {
         sizeOne = sizeof(real3);
         maxSize = max(maxSize, paddedNumFree*sizeOne);
         savedPos = new CudaArray(cu, paddedNumFree, sizeOne, "savedPos");
+        rdot = new CudaArray(cu, paddedNumFree, sizeOne, "rdot");
     }
     return maxSize;
 }
@@ -211,6 +214,7 @@ void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context,
                                       CudaRigidBodyKernelSources::rigidbodyintegrator,
                                       defines, "");
     freeAtomsDelta = cu.getKernel(module, "freeAtomsDelta");
+    freeAtomsDot = cu.getKernel(module, "freeAtomsDot");
     rigidBodiesPart1 = cu.getKernel(module, "integrateRigidBodyPart1");
     rigidBodiesPart2 = cu.getKernel(module, "integrateRigidBodyPart2");
     kineticEnergyKernel = cu.getKernel(module, "computeKineticEnergies");
@@ -259,10 +263,28 @@ void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context,
 void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySystem) {
     cu.setAsCurrent();
 
+    bool useDouble = cu.getUseDoublePrecision() || cu.getUseMixedPrecision();
+
+    int numFree = bodySystem.getNumFree();
+    if (numFree != 0) {
+        if (useDouble) {
+            double3* data = (double3*) pinnedBuffer;
+            for (int i = 0; i < numFree; i++)
+            data[i] = make_double3(0.0, 0.0, 0.0);
+            rdot->upload(data);
+        }
+        else {
+            float3* data = (float3*) pinnedBuffer;
+            for (int i = 0; i < numFree; i++)
+            data[i] = make_float3(0.0f, 0.0f, 0.0f);
+            rdot->upload(data);
+        }
+    }
+
     int numBodies = bodySystem.getNumBodies();
     if (numBodies != 0) {
         int numBodyAtoms = bodySystem.getNumBodyAtoms();
-        if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
+        if (useDouble) {
             using bodyDouble = bodyType<double,double3,double4>;
             bodyDouble* data = (bodyDouble*) pinnedBuffer;
             for (int i = 0; i < numBodies; i++) {
@@ -334,6 +356,7 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
     float timeStepFloat = (float)timeStepDouble;
     bool useDouble = cu.getUseDoublePrecision() || cu.getUseMixedPrecision();
     int numThreads = max(numFree, numBodies);
+    int rdotRezero, rdotFactor;
 
     CUdeviceptr posCorrection = cu.getUseMixedPrecision() ? cu.getPosqCorrection().getDevicePointer() : 0;
     CUdeviceptr bodyDataPtr = numBodies != 0 ? bodyData->getDevicePointer() : 0;
@@ -343,16 +366,25 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
     void* args[] = {&paddedNumAtoms, &numFree, &numBodies,
                     useDouble ? (void*) &timeStepDouble : (void*) &timeStepFloat,
                     &cu.getPosq().getDevicePointer(),
-                    &posCorrection,
-                    &cu.getVelm().getDevicePointer(),
+                    &posCorrection, &cu.getVelm().getDevicePointer(),
                     &cu.getForce().getDevicePointer(),
                     &integration.getPosDelta().getDevicePointer(),
-                    &bodyDataPtr,
-                    &atomLocation->getDevicePointer(),
-                    &bodyFixedPosPtr,
-                    &savedPosPtr};
+                    &bodyDataPtr, &atomLocation->getDevicePointer(),
+                    &bodyFixedPosPtr, &savedPosPtr, &rdotRezero, &rdotFactor,
+                    &rdot->getDevicePointer()};
 
     if (numFree != 0) {
+        if (integrator.getComputeRefinedEnergies()) {
+            timeStepDouble = -timeStepDouble;
+            timeStepFloat = -timeStepFloat;
+            integration.applyConstraints(integrator.getConstraintTolerance());
+            cu.executeKernel(freeAtomsDelta, args, numFree, 128);
+            rdotRezero = 1;
+            rdotFactor = -1;
+            cu.executeKernel(freeAtomsDot, args, numFree, 128);
+            timeStepDouble = -timeStepDouble;
+            timeStepFloat = -timeStepFloat;
+        }
         cu.executeKernel(freeAtomsDelta, args, numFree, 128);
         integration.applyConstraints(integrator.getConstraintTolerance());
     }
@@ -364,8 +396,18 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
 
     cu.executeKernel(rigidBodiesPart2, args, numThreads, 128);
 
-    if (numFree != 0)
+    if (numFree != 0)  {
         integration.applyVelocityConstraints(integrator.getConstraintTolerance());
+        if (integrator.getComputeRefinedEnergies()) {
+            rdotRezero = 0;
+            rdotFactor = 5;
+            cu.executeKernel(freeAtomsDot, args, numFree, 128);
+            cu.executeKernel(freeAtomsDelta, args, numFree, 128);
+            integration.applyConstraints(integrator.getConstraintTolerance());
+            rdotFactor = 2;
+            cu.executeKernel(freeAtomsDot, args, numFree, 128);
+        }
+    }
 
     cu.setTime(cu.getTime()+integrator.getStepSize());
     cu.setStepCount(cu.getStepCount()+1);
