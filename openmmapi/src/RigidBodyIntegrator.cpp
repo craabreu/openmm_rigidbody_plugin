@@ -85,6 +85,10 @@ std::vector<double> RigidBodyIntegrator::getRefinedKineticEnergies() {
     return kernel.getAs<IntegrateRigidBodyStepKernel>().getRefinedKineticEnergies(*context, *this);
 }
 
+double RigidBodyIntegrator::getPotentialEnergyRefinement() {
+    return kernel.getAs<IntegrateRigidBodyStepKernel>().getPotentialEnergyRefinement(*this);
+}
+
 std::vector<int> RigidBodyIntegrator::getBodyIndices() const {
     return bodyIndices;
 }

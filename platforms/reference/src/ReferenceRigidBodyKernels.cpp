@@ -130,3 +130,7 @@ vector<double> ReferenceIntegrateRigidBodyStepKernel::getRefinedKineticEnergies(
     KE[1] = bodySystem.getRotationalEnergy();
     return KE;
 }
+
+double ReferenceIntegrateRigidBodyStepKernel::getPotentialEnergyRefinement(const RigidBodyIntegrator& integrator) {
+    return 0.0;
+}

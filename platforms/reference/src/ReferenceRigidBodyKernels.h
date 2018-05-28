@@ -90,6 +90,13 @@ public:
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
     std::vector<double> getRefinedKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
+    /**
+     * Compute the potential energy refinement.
+     *
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    double getPotentialEnergyRefinement(const RigidBodyIntegrator& integrator);
 private:
     OpenMM::ReferencePlatform::PlatformData& data;
     RigidBodySystem bodySystem;

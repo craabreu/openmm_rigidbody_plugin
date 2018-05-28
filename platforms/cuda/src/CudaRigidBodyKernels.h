@@ -91,12 +91,22 @@ public:
      * @param integrator the RigidBodyIntegrator this kernel is being used for
      */
     std::vector<double> getRefinedKineticEnergies(OpenMM::ContextImpl& context, const RigidBodyIntegrator& integrator);
+    /**
+     * Compute the potential energy refinement.
+     *
+     * @param context    the context in which to execute this kernel
+     * @param integrator the RigidBodyIntegrator this kernel is being used for
+     */
+    double getPotentialEnergyRefinement(const RigidBodyIntegrator& integrator);
 private:
     class ReorderListener;
     ReorderListener* reorderListener = NULL;
 
     template <class real, class real2>
     std::vector<double> kineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator, bool refined);
+
+    template <class real>
+    real potentialEnergyRefinement();
 
     template <class real, class real2, class real3, class real4>
     size_t allocateArrays();
@@ -105,14 +115,16 @@ private:
     CUfunction freeAtomsDelta, freeAtomsDot;
     CUfunction rigidBodiesPart1, rigidBodiesPart2;
     CUfunction kineticEnergyKernel, refinedKineticEnergyKernel;
+    CUfunction potentialEnergyRefinementKernel;
     void* pinnedBuffer = NULL;
 
     OpenMM::CudaArray* atomLocation = NULL;
     OpenMM::CudaArray* bodyData = NULL;
     OpenMM::CudaArray* bodyFixedPos = NULL;
     OpenMM::CudaArray* savedPos = NULL;
-    OpenMM::CudaArray* atomKE = NULL;
-    OpenMM::CudaArray* bodyKE = NULL;
+    OpenMM::CudaArray* atomE = NULL;
+    OpenMM::CudaArray* bodyE1 = NULL;
+    OpenMM::CudaArray* bodyE2 = NULL;
     OpenMM::CudaArray* rdot = NULL;
 
     int numBodies;

@@ -8,9 +8,9 @@ class StateDataReporter(app.StateDataReporter):
     def __init__(self, *args, **kwargs):
         self._translationalEnergy = kwargs.pop('translationalEnergy', False)
         self._rotationalEnergy = kwargs.pop('rotationalEnergy', False)
-#         self._refinedPotentialEnergy = kwargs.pop('refinedPotentialEnergy', False)
+        self._refinedPotentialEnergy = kwargs.pop('refinedPotentialEnergy', False)
         self._refinedKineticEnergy = kwargs.pop('refinedKineticEnergy', False)
-#         self._refinedTotalEnergy = kwargs.pop('_refinedTotalEnergy', False)
+        self._refinedTotalEnergy = kwargs.pop('refinedTotalEnergy', False)
         self._refinedTemperature = kwargs.pop('refinedTemperature', False)
         self._refinedTranslationalEnergy = kwargs.pop('refinedTranslationalEnergy', False)
         self._refinedRotationalEnergy = kwargs.pop('refinedRotationalEnergy', False)
@@ -33,8 +33,12 @@ class StateDataReporter(app.StateDataReporter):
             headers.append('Translational Energy (kJ/mole)')
         if self._rotationalEnergy:
             headers.append('Rotational Energy (kJ/mole)')
+        if self._refinedPotentialEnergy:
+            headers.append('Refined Potential Energy (kJ/mole)')
         if self._refinedKineticEnergy:
             headers.append('Refined Kinetic Energy (kJ/mole)')
+        if self._refinedTotalEnergy:
+            headers.append('Refined Total Energy (kJ/mole)')
         if self._refinedTemperature:
             headers.append('Refined Temperature (K)')
         if self._refinedTranslationalEnergy:
@@ -56,7 +60,14 @@ class StateDataReporter(app.StateDataReporter):
             if self._rotationalEnergy:
                 values.append(KE[1].value_in_unit(unit.kilojoules_per_mole))
 
-        if (self._refinedKineticEnergy or self._refinedTemperature or
+        if (self._refinedPotentialEnergy or self._refinedTotalEnergy):
+            U = state.getPotentialEnergy()
+            if _isRigid(simulation):
+                U += simulation.integrator.getPotentialEnergyRefinement()
+            if self._refinedPotentialEnergy:
+                values.append(U.value_in_unit(unit.kilojoules_per_mole))
+
+        if (self._refinedKineticEnergy or self._refinedTotalEnergy or self._refinedTemperature or
             self._refinedTranslationalEnergy or self._refinedRotationalEnergy):
             if _isRigid(simulation):
                 KE = simulation.integrator.getRefinedKineticEnergies()
@@ -64,6 +75,8 @@ class StateDataReporter(app.StateDataReporter):
                 KE = [state.getKineticEnergy(), 0.0*unit.kilojoules_per_mole]
             if self._refinedKineticEnergy:
                 values.append((KE[0] + KE[1]).value_in_unit(unit.kilojoules_per_mole))
+            if self._refinedTotalEnergy:
+                values.append((KE[0] + KE[1] + U).value_in_unit(unit.kilojoules_per_mole))
             if self._refinedTemperature:
                 T = 2*(KE[0] + KE[1])/(self._dof*unit.MOLAR_GAS_CONSTANT_R)
                 values.append(T.value_in_unit(unit.kelvin))

@@ -42,6 +42,10 @@ namespace std {
     val = tuple(unit.Quantity(v, unit.kilojoule_per_mole) for v in val)
 %}
 
+%pythonappend RigidBodyPlugin::RigidBodyIntegrator::getPotentialEnergyRefinement() %{
+    val = unit.Quantity(val, unit.kilojoule_per_mole)
+%}
+
 namespace RigidBodyPlugin {
 
 class RigidBodySystem {
@@ -62,6 +66,7 @@ public:
     RigidBodySystem getRigidBodySystem();
     std::vector<double> getKineticEnergies();
     std::vector<double> getRefinedKineticEnergies();
+    double getPotentialEnergyRefinement();
     void step(int steps);
 };
 

@@ -97,6 +97,10 @@ public:
      * Compute the translational and rotational terms of the refined kinetic energy.
      */
     std::vector<double> getRefinedKineticEnergies();
+    /**
+     * Compute the potential energy refinement.
+     */
+    double getPotentialEnergyRefinement();
 protected:
     /**
      * This will be called by the Context when it is created.  It informs the Integrator

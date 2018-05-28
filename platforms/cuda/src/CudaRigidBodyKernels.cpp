@@ -56,8 +56,9 @@ CudaIntegrateRigidBodyStepKernel::~CudaIntegrateRigidBodyStepKernel() {
         delete bodyData;
         delete bodyFixedPos;
         delete savedPos;
-        delete atomKE;
-        delete bodyKE;
+        delete atomE;
+        delete bodyE1;
+        delete bodyE2;
         delete rdot;
     }
 }
@@ -124,44 +125,73 @@ vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& cont
     // Call the first integration kernel.
 
     CUdeviceptr bodyDataPtr = numBodies != 0 ? bodyData->getDevicePointer() : 0;
-    CUdeviceptr atomKEPtr = numFree != 0 ? atomKE->getDevicePointer() : 0;
-    CUdeviceptr bodyKEPtr = numBodies != 0 ? bodyKE->getDevicePointer() : 0;
+    CUdeviceptr atomEPtr = numFree != 0 ? atomE->getDevicePointer() : 0;
+    CUdeviceptr bodyE1Ptr = numBodies != 0 ? bodyE1->getDevicePointer() : 0;
+    CUdeviceptr bodyE2Ptr = numBodies != 0 ? bodyE2->getDevicePointer() : 0;
     void* args[] = {&numFree, &numBodies,
                     &cu.getVelm().getDevicePointer(),
-                    &bodyDataPtr,
-                    &atomLocation->getDevicePointer(),
+                    &bodyDataPtr, &atomLocation->getDevicePointer(),
                     &rdot->getDevicePointer(),
-                    &atomKEPtr,
-                    &bodyKEPtr};
+                    &atomEPtr, &bodyE1Ptr, &bodyE2Ptr};
 
     if (refined)
         cu.executeKernel(refinedKineticEnergyKernel, args, numAtoms, 128);
     else
         cu.executeKernel(kineticEnergyKernel, args, numAtoms, 128);
 
-    vector<real> KE0(2, 0.0);
+    real KEt = (real) 0.0;
+    real KEr = (real) 0.0;
+    real* E = (real*) pinnedBuffer;
     if (numFree != 0) {
-        real* aKE = (real*)pinnedBuffer;
-        atomKE->download(aKE);
+        atomE->download(E);
         for (int i = 0; i < numFree; i++)
-            KE0[0] += aKE[i];
+            KEt += E[i];
     }
     if (numBodies != 0) {
-        real2* bKE = (real2*)pinnedBuffer;
-        bodyKE->download(bKE);
-        for (int i = 0; i < numBodies; i++) {
-            KE0[0] += bKE[i].x;
-            KE0[1] += bKE[i].y;
-        }
+        bodyE1->download(E);
+        for (int i = 0; i < numBodies; i++)
+            KEt += E[i];
+        bodyE2->download(E);
+        for (int i = 0; i < numBodies; i++)
+            KEr += E[i];
     }
 
-    vector<double> KE(KE0.begin(), KE0.end());
-    if (refined) {
-        double dt6 = 6.0*integrator.getStepSize();
-        KE[0] /= dt6;
-        KE[1] /= dt6;
-    }
+    vector<double> KE(2);
+    double factor = refined ? 1.0/(6.0*integrator.getStepSize()) : 1.0;
+    KE[0] = KEt*factor;
+    KE[1] = KEr*factor;
     return KE;
+}
+
+/*--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------*/
+
+template <class real>
+real CudaIntegrateRigidBodyStepKernel::potentialEnergyRefinement() {
+    cu.setAsCurrent();
+    int paddedNumAtoms = cu.getPaddedNumAtoms();
+    CUdeviceptr bodyDataPtr = numBodies != 0 ? bodyData->getDevicePointer() : 0;
+    CUdeviceptr atomEPtr = numFree != 0 ? atomE->getDevicePointer() : 0;
+    CUdeviceptr bodyE1Ptr = numBodies != 0 ? bodyE1->getDevicePointer() : 0;
+    void* args[] = {&paddedNumAtoms, &numFree, &numBodies,
+                    &cu.getVelm().getDevicePointer(),
+                    &cu.getForce().getDevicePointer(),
+                    &bodyDataPtr, &atomLocation->getDevicePointer(),
+                    &atomEPtr, &bodyE1Ptr};
+    cu.executeKernel(potentialEnergyRefinementKernel, args, max(numFree, numBodies), 128);
+    real U = (real) 0.0;
+    real* E = (real*) pinnedBuffer;
+    if (numFree != 0) {
+        atomE->download(E);
+        for (int i = 0; i < numFree; i++)
+            U += E[i];
+    }
+    if (numBodies != 0) {
+        bodyE1->download(E);
+        for (int i = 0; i < numBodies; i++)
+            U += E[i];
+    }
+    return U;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -175,7 +205,8 @@ size_t CudaIntegrateRigidBodyStepKernel::allocateArrays() {
     atomLocation = new CudaArray(cu, paddedNumActualAtoms, sizeOne, "atomLocation");
 
     if (numBodies != 0) {
-        bodyKE = new CudaArray(cu, paddedNumBodies, sizeof(real2), "bodyKE");
+        bodyE1 = new CudaArray(cu, paddedNumBodies, sizeof(real2), "bodyE1");
+        bodyE2 = new CudaArray(cu, paddedNumBodies, sizeof(real2), "bodyE2");
 
         sizeOne = sizeof(bodyType<real,real3,real4>);
         maxSize = max(maxSize, paddedNumBodies*sizeOne);
@@ -186,7 +217,7 @@ size_t CudaIntegrateRigidBodyStepKernel::allocateArrays() {
         bodyFixedPos = new CudaArray(cu, paddedNumBodyAtoms, sizeOne, "bodyFixedPos");
     }
     if (numFree != 0) {
-        atomKE = new CudaArray(cu, paddedNumFree, sizeof(real), "atomKE");
+        atomE = new CudaArray(cu, paddedNumFree, sizeof(real), "atomE");
 
         sizeOne = sizeof(real3);
         maxSize = max(maxSize, paddedNumFree*sizeOne);
@@ -199,8 +230,7 @@ size_t CudaIntegrateRigidBodyStepKernel::allocateArrays() {
 /*--------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------*/
 
-void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context,
-                                                  const RigidBodyIntegrator& integrator) {
+void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     cu.getPlatformData().initializeContexts(context.getSystem());
     cu.setAsCurrent();
     map<string, string> defines;
@@ -217,8 +247,9 @@ void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context,
     freeAtomsDot = cu.getKernel(module, "freeAtomsDot");
     rigidBodiesPart1 = cu.getKernel(module, "integrateRigidBodyPart1");
     rigidBodiesPart2 = cu.getKernel(module, "integrateRigidBodyPart2");
-    kineticEnergyKernel = cu.getKernel(module, "computeKineticEnergies");
-    refinedKineticEnergyKernel = cu.getKernel(module, "computeRefinedKineticEnergies");
+    kineticEnergyKernel = cu.getKernel(module, "kineticEnergies");
+    refinedKineticEnergyKernel = cu.getKernel(module, "refinedKineticEnergies");
+    potentialEnergyRefinementKernel = cu.getKernel(module, "potentialEnergyRefinement");
 
     const RigidBodySystem& bodySystem = integrator.getRigidBodySystem();
     numBodies = bodySystem.getNumBodies();
@@ -262,7 +293,6 @@ void CudaIntegrateRigidBodyStepKernel::initialize(ContextImpl& context,
 
 void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySystem) {
     cu.setAsCurrent();
-
     bool useDouble = cu.getUseDoublePrecision() || cu.getUseMixedPrecision();
 
     int numFree = bodySystem.getNumFree();
@@ -345,8 +375,7 @@ void CudaIntegrateRigidBodyStepKernel::uploadBodySystem(RigidBodySystem& bodySys
 /*--------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------*/
 
-void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
-                                               const RigidBodyIntegrator& integrator) {
+void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const RigidBodyIntegrator& integrator) {
     context.updateContextState();
     cu.setAsCurrent();
     CudaIntegrationUtilities& integration = cu.getIntegrationUtilities();
@@ -419,6 +448,7 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context,
 
 double CudaIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator)
 {
+    cu.setAsCurrent();
     vector<double> KE;
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
         KE = kineticEnergy<double,double2>(context, integrator, false);
@@ -431,17 +461,34 @@ double CudaIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& conte
 --------------------------------------------------------------------------------------------------*/
 
 vector<double> CudaIntegrateRigidBodyStepKernel::getKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+    cu.setAsCurrent();
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
         return kineticEnergy<double,double2>(context, integrator, false);
     else
         return kineticEnergy<float,float2>(context, integrator, false);
 }
+
 /*--------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------*/
 
 vector<double> CudaIntegrateRigidBodyStepKernel::getRefinedKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+    cu.setAsCurrent();
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
         return kineticEnergy<double,double2>(context, integrator, true);
     else
         return kineticEnergy<float,float2>(context, integrator, true);
+}
+
+/*--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------*/
+
+double CudaIntegrateRigidBodyStepKernel::getPotentialEnergyRefinement(const RigidBodyIntegrator& integrator) {
+    cu.setAsCurrent();
+    double Uref;
+    if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
+        Uref = potentialEnergyRefinement<double>();
+    else
+        Uref = potentialEnergyRefinement<float>();
+    double dt = integrator.getStepSize();
+    return -Uref*dt*dt/24.0;
 }

@@ -405,25 +405,24 @@ extern "C" __global__ void integrateRigidBodyPart2(args) {
                BodyData* __restrict__ bodyData, \
                const int* __restrict__ atomLocation, \
                mixed3* __restrict__ posDot, \
-               mixed* __restrict__ atomKE, \
-               mixed2* __restrict__ bodyKE
+               mixed* __restrict__ atomE, \
+               mixed* __restrict__ bodyE1, \
+               mixed* __restrict__ bodyE2
 
 /*--------------------------------------------------------------------------------------------------
   Computation of kinetic energy.
 --------------------------------------------------------------------------------------------------*/
 
-extern "C" __global__ void computeKineticEnergies(KEargs) {
-
+extern "C" __global__ void kineticEnergies(KEargs) {
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         mixed4& v = velm[atomLocation[j]];
-        atomKE[j] = half*(v.x*v.x + v.y*v.y + v.z*v.z)/v.w;
+        atomE[j] = half*(v.x*v.x + v.y*v.y + v.z*v.z)/v.w;
     }
-
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
         BodyData &body = bodyData[k];
         mixed3 L = Bt(body.q, body.pi)*half;
-        bodyKE[k].x = dot(body.v/body.invm, body.v)*half;
-        bodyKE[k].y = dot(L, L*body.invI)*half;
+        bodyE1[k] = dot(body.v/body.invm, body.v)*half;
+        bodyE2[k] = dot(L, L*body.invI)*half;
     }
 }
 
@@ -431,16 +430,40 @@ extern "C" __global__ void computeKineticEnergies(KEargs) {
   Computation of refined kinetic energy terms.
 --------------------------------------------------------------------------------------------------*/
 
-extern "C" __global__ void computeRefinedKineticEnergies(KEargs) {
-
+extern "C" __global__ void refinedKineticEnergies(KEargs) {
     for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
         mixed4& v = velm[atomLocation[j]];
-        atomKE[j] = dot(posDot[j], trim(v))*(half/v.w);
+        atomE[j] = dot(posDot[j], trim(v))*(half/v.w);
     }
-
     for (int k = blockIdx.x*blockDim.x+threadIdx.x; k < numBodies; k += blockDim.x*gridDim.x) {
         BodyData &body = bodyData[k];
-        bodyKE[k].x = dot(body.rdot, body.v)/body.invm;
-        bodyKE[k].y = dot(body.qdot, body.pi);
+        bodyE1[k] = dot(body.rdot, body.v)/body.invm;
+        bodyE2[k] = dot(body.qdot, body.pi);
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Computation of potential energy refinement.
+--------------------------------------------------------------------------------------------------*/
+
+extern "C" __global__ void potentialEnergyRefinement(int stride,
+                                                     int numFree,
+                                                     int numBodies,
+                                                     mixed4* __restrict__ velm,
+                                                     const long long* __restrict__ force,
+                                                     BodyData* __restrict__ bodyData,
+                                                     const int* __restrict__ atomLocation,
+                                                     mixed* __restrict__ atomE,
+                                                     mixed* __restrict__ bodyE) {
+    const mixed scale = one/(mixed)0x100000000;
+    for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numFree; j += blockDim.x*gridDim.x) {
+        int i = atomLocation[j];
+        mixed3 f = make_mixed3(force[i], force[i+stride], force[i+stride*2])*scale;
+        atomE[j] = dot(f, f)*velm[i].w;
+    }
+    for (int j = blockIdx.x*blockDim.x+threadIdx.x; j < numBodies; j += blockDim.x*gridDim.x) {
+        BodyData &body = bodyData[j];
+        mixed3 tau = Bt(body.q, body.Ctau);
+        bodyE[j] = dot(body.F, body.F)*body.invm + dot(tau*body.invI, tau);
     }
 }
