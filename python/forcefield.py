@@ -7,9 +7,10 @@ class ForceField(app.ForceField):
 
     class _bodyTemplateData(object):
         """Inner class used to encapsulate data about a rigid body template definition."""
-        def __init__(self, residue, atoms):
+        def __init__(self, residue, pattern, virtualSites):
             self.residue = residue
-            self.atoms = set(atoms)
+            self.pattern = pattern
+            self.virtualSites = virtualSites
 
         def __str__(self):
             return "%s: [%s]" % (self.residue, " ".join(self.atoms))
@@ -17,7 +18,7 @@ class ForceField(app.ForceField):
     def getBodyTemplate(self, name):
         return self._bodyTemplates[name]
 
-    def registerBodyTemplate(self, name, residue, pattern=None):
+    def registerBodyTemplate(self, name, residue, pattern='.+'):
         """Register a new rigid body template.
 
         Parameters
@@ -26,7 +27,7 @@ class ForceField(app.ForceField):
             A name for the rigid body template being registered.
         residue : string
             The name of the residue template to which this body belongs.
-        pattern : string=None
+        pattern : string='.+'
             A string containing a regular expression for selecting the atoms in residue which will
             form the body. A list of atom names can be passed as '(name1|name2|...)', for instance.
             Only actual atoms will be considered (i.e. virtual sites will be ignored). If patttern
@@ -40,11 +41,7 @@ class ForceField(app.ForceField):
         template = self._templates[residue]
         allAtoms = [a.name for a in template.atoms]
         virtualSites = set(allAtoms[vs.index] for vs in template.virtualSites)
-        actualAtoms = list(set(allAtoms) - virtualSites)
-        bodyAtoms = [a for a in actualAtoms if re.match(pattern, a)] if pattern else actualAtoms
-        if not bodyAtoms:
-            raise ValueError('No actual atom in %s matches the provided pattern.' % residue)
-        self._bodyTemplates[name] = self._bodyTemplateData(residue, bodyAtoms)
+        self._bodyTemplates[name] = self._bodyTemplateData(residue, pattern, virtualSites)
 
     def _disjointSets(self, sets):
         new = []
@@ -85,8 +82,14 @@ class ForceField(app.ForceField):
         for res in topology.residues():
             for body in filter(lambda x: x.residue == res.name, bodies):
                 n += 1
-                for atom in filter(lambda x: x.name in body.atoms, res.atoms()):
-                    index[atom.index] = n
+                inBody = lambda x: x not in body.virtualSites and re.match(body.pattern, x)
+                atoms = [atom for atom in res.atoms() if inBody(atom.name)]
+                if atoms:
+                    for atom in atoms:
+                        index[atom.index] = n
+                else:
+                    raise ValueError('no atom in residue %s matches pattern %s' % (res.name, body.pattern))
+
         if merge is not None:
             if not hasattr(merge, '__iter__'):
                 raise ValueError('merge parameter is not a sequence')
