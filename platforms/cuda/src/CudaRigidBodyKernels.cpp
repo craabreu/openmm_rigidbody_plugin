@@ -116,8 +116,7 @@ private:
 --------------------------------------------------------------------------------------------------*/
 
 template <class real, class real2>
-vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& context,
-                                                               const RigidBodyIntegrator& integrator,
+vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(const RigidBodyIntegrator& integrator,
                                                                bool refined) {
     cu.setAsCurrent();
     int numAtoms = cu.getNumAtoms();
@@ -125,14 +124,14 @@ vector<double> CudaIntegrateRigidBodyStepKernel::kineticEnergy(ContextImpl& cont
     // Call the first integration kernel.
 
     CUdeviceptr bodyDataPtr = numBodies != 0 ? bodyData->getDevicePointer() : 0;
+    CUdeviceptr rdotPtr = numFree != 0 ? rdot->getDevicePointer() : 0;
     CUdeviceptr atomEPtr = numFree != 0 ? atomE->getDevicePointer() : 0;
     CUdeviceptr bodyE1Ptr = numBodies != 0 ? bodyE1->getDevicePointer() : 0;
     CUdeviceptr bodyE2Ptr = numBodies != 0 ? bodyE2->getDevicePointer() : 0;
     void* args[] = {&numFree, &numBodies,
                     &cu.getVelm().getDevicePointer(),
                     &bodyDataPtr, &atomLocation->getDevicePointer(),
-                    &rdot->getDevicePointer(),
-                    &atomEPtr, &bodyE1Ptr, &bodyE2Ptr};
+                    &rdotPtr, &atomEPtr, &bodyE1Ptr, &bodyE2Ptr};
 
     if (refined)
         cu.executeKernel(refinedKineticEnergyKernel, args, numAtoms, 128);
@@ -391,6 +390,7 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const Rigid
     CUdeviceptr bodyDataPtr = numBodies != 0 ? bodyData->getDevicePointer() : 0;
     CUdeviceptr bodyFixedPosPtr = numBodies != 0 ? bodyFixedPos->getDevicePointer() : 0;
     CUdeviceptr savedPosPtr = numFree != 0 ? savedPos->getDevicePointer() : 0;
+    CUdeviceptr rdotPtr = numFree != 0 ? rdot->getDevicePointer() : 0;
 
     void* args[] = {&paddedNumAtoms, &numFree, &numBodies,
                     useDouble ? (void*) &timeStepDouble : (void*) &timeStepFloat,
@@ -400,7 +400,7 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const Rigid
                     &integration.getPosDelta().getDevicePointer(),
                     &bodyDataPtr, &atomLocation->getDevicePointer(),
                     &bodyFixedPosPtr, &savedPosPtr, &rdotRezero, &rdotFactor,
-                    &rdot->getDevicePointer()};
+                    &rdotPtr};
 
     if (numFree != 0) {
         if (integrator.getComputeRefinedEnergies()) {
@@ -448,35 +448,31 @@ void CudaIntegrateRigidBodyStepKernel::execute(ContextImpl& context, const Rigid
 
 double CudaIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& context, const RigidBodyIntegrator& integrator)
 {
-    cu.setAsCurrent();
-    vector<double> KE;
-    if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
-        KE = kineticEnergy<double,double2>(context, integrator, false);
-    else
-        KE = kineticEnergy<float,float2>(context, integrator, false);
+    vector<double> KE = getKineticEnergies(integrator);
     return std::accumulate(KE.begin(), KE.end(), 0.0);
 }
 
 /*--------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------*/
 
-vector<double> CudaIntegrateRigidBodyStepKernel::getKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+vector<double> CudaIntegrateRigidBodyStepKernel::getKineticEnergies(const RigidBodyIntegrator& integrator) {
     cu.setAsCurrent();
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
-        return kineticEnergy<double,double2>(context, integrator, false);
+        return kineticEnergy<double,double2>(integrator, false);
     else
-        return kineticEnergy<float,float2>(context, integrator, false);
+        return kineticEnergy<float,float2>(integrator, false);
 }
 
 /*--------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------*/
 
-vector<double> CudaIntegrateRigidBodyStepKernel::getRefinedKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
+vector<double> CudaIntegrateRigidBodyStepKernel::getRefinedKineticEnergies(const RigidBodyIntegrator& integrator) {
     cu.setAsCurrent();
+    bool refined = integrator.getComputeRefinedEnergies();
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
-        return kineticEnergy<double,double2>(context, integrator, true);
+        return kineticEnergy<double,double2>(integrator, refined);
     else
-        return kineticEnergy<float,float2>(context, integrator, true);
+        return kineticEnergy<float,float2>(integrator, refined);
 }
 
 /*--------------------------------------------------------------------------------------------------

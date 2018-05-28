@@ -8,7 +8,7 @@
  *                                                                            *
  * Portions copyright (c) 2014 Stanford University and the Authors.           *
  * Authors: Peter Eastman                                                     *
- * Contributors:                                                              *
+ * Contributors:                                               ''               *
  *                                                                            *
  * Permission is hereby granted, free of charge, to any person obtaining a    *
  * copy of this software and associated documentation files (the "Software"), *
@@ -113,18 +113,14 @@ double ReferenceIntegrateRigidBodyStepKernel::computeKineticEnergy(ContextImpl& 
     return bodySystem.getKineticEnergy();
 }
 
-vector<double> ReferenceIntegrateRigidBodyStepKernel::getKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
-    vector<Vec3>& V = extractVelocities(context);
-    bodySystem.computeKineticEnergies(V);
+vector<double> ReferenceIntegrateRigidBodyStepKernel::getKineticEnergies(const RigidBodyIntegrator& integrator) {
     vector<double> KE(2);
     KE[0] = bodySystem.getTranslationalEnergy();
     KE[1] = bodySystem.getRotationalEnergy();
     return KE;
 }
 
-vector<double> ReferenceIntegrateRigidBodyStepKernel::getRefinedKineticEnergies(ContextImpl& context, const RigidBodyIntegrator& integrator) {
-    vector<Vec3>& V = extractVelocities(context);
-    bodySystem.computeKineticEnergies(V);
+vector<double> ReferenceIntegrateRigidBodyStepKernel::getRefinedKineticEnergies(const RigidBodyIntegrator& integrator) {
     vector<double> KE(2);
     KE[0] = bodySystem.getTranslationalEnergy();
     KE[1] = bodySystem.getRotationalEnergy();
