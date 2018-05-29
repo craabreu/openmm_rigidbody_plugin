@@ -479,12 +479,16 @@ vector<double> CudaIntegrateRigidBodyStepKernel::getRefinedKineticEnergies(const
 --------------------------------------------------------------------------------------------------*/
 
 double CudaIntegrateRigidBodyStepKernel::getPotentialEnergyRefinement(const RigidBodyIntegrator& integrator) {
-    cu.setAsCurrent();
-    double Uref;
-    if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
-        Uref = potentialEnergyRefinement<double>();
+    if (integrator.getComputeRefinedEnergies()) {
+        cu.setAsCurrent();
+        double Uref;
+        if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
+            Uref = potentialEnergyRefinement<double>();
+        else
+            Uref = potentialEnergyRefinement<float>();
+        double dt = integrator.getStepSize();
+        return -Uref*dt*dt/24.0;
+    }
     else
-        Uref = potentialEnergyRefinement<float>();
-    double dt = integrator.getStepSize();
-    return -Uref*dt*dt/24.0;
+        return 0.0;
 }
